@@ -204,7 +204,7 @@ Vue 3 / TypeScript → Spring Boot 3.5 / MyBatis-Plus / MySQL → FastAPI RAG。
 # Java目录：bash mvnw -B -ntp test-compile dependency:build-classpath -Dmdep.includeScope=test -Dmdep.outputFile=target/test-classpath.txt
 # 前端目录：npm run build
 # 项目根目录，使用已安装依赖的Python；报告路径不得已存在
-.cache/helloagents-venv/bin/python scripts/smoke-learning.py --output .cache/new-learning-loop-report.json
+.cache/mcp-pdf-venv/bin/python scripts/smoke-learning.py --output .cache/new-learning-loop-report.json
 ```
 
 浏览器按既有方式配置`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`或安装Playwright Chromium。脚本只启动本次随机回环端口服务与独立浏览器上下文，结束后关闭本次进程；不连接日常MySQL、不读日常浏览器资料、不执行正式迁移。
@@ -238,6 +238,16 @@ python scripts/prepare-server-data.py --release-root /opt/kaoyan-releases/实际
 `scripts/activate-server-release.py` 是上述已预演Ubuntu实例的受限正式更新工具，默认只读；显式 `--activate` 才开启维护、停项目服务、新备份及程序切换。首次更新已提交V13/V14和公共资料，但错误的Java探测导致程序回退；修复后用户使用 `--committed-activation` 成功切换新版且未重复导入。旧目录与凭证保留；诊断／学情与只读招生链接开关已启用，用户选择LLM暂时关闭。新IP HTTPS公网入口已检查；用户回传证书续期模拟及公开Embedding权重下载、512维本地编码通过。首次定时续期、题目索引和登录后业务验收仍待完成。真实范围及回退边界见[正式更新记录](docs/server-release-activation-2026-11-03.md)。
 
 需要 Java 17、Python 3.13、Node.js 22（含 npm）；业务运行另需 MySQL 8 和 Redis。
+
+本机Python环境现状（2026-11-13核对，仅适用于当前这台开发机；新机器按下方步骤新建 `.venv` 并安装当前requirements即可，不受此影响）：
+
+| 环境 | 状态 | 可用于 |
+| --- | --- | --- |
+| `.cache/mcp-pdf-venv` | `kaoyan-agent/requirements*.txt` 与约束文件中的固定版本全部一致，`pip check` 无冲突，可导入 `main` | 启动Agent、pytest、本文全部Python脚本 |
+| `.cache/helloagents-venv` | 缺 `mcp` 包，不能导入 `main` | 仅不启动、不导入Agent入口的脚本，如 `import-school-metrics.py`、`prepare-question-model.py`、`verify-question-semantic.py` |
+| 根目录 `.venv` | 保留的原LangChain环境，缺 `hello_agents` | 不能运行当前Agent |
+
+本文中需要启动或导入Agent的本机命令已统一改用 `.cache/mcp-pdf-venv`；两个旧环境未修改、未删除。
 
 从根目录执行（Windows PowerShell）：
 
@@ -358,7 +368,7 @@ LLM_MODEL_MAIN=deepseek-flash
 LLM_MODEL_ROUTER=deepseek-flash
 ```
 
-填写后只测Python链路可从项目根目录运行`cd kaoyan-agent`，再运行`../.cache/helloagents-venv/bin/python -m uvicorn main:create_app --factory --host 127.0.0.1 --port 8001`（此路径为本轮独立验证环境；其他机器使用自行安装requirements的虚拟环境）。`GET /health`的`modelEnabled=true`仅代表配置开启，不代表供应商调用成功。整站`/tasks`测试还需要新版Java、Redis和已应用V10/V11/V12的数据库；不可通过重跑V1准备已有业务库。2026-10-22已完成两轮Python链路的DeepSeek真实请求，范围和整站待办见[接入验证记录](docs/deepseek-verification-2026-10-22.md)。
+填写后只测Python链路可从项目根目录运行`cd kaoyan-agent`，再运行`../.cache/mcp-pdf-venv/bin/python -m uvicorn main:create_app --factory --host 127.0.0.1 --port 8001`（此路径为本机当前装全依赖的环境；其他机器使用自行安装requirements的虚拟环境）。`GET /health`的`modelEnabled=true`仅代表配置开启，不代表供应商调用成功。整站`/tasks`测试还需要新版Java、Redis和已应用V10/V11/V12的数据库；不可通过重跑V1准备已有业务库。2026-10-22已完成两轮Python链路的DeepSeek真实请求，范围和整站待办见[接入验证记录](docs/deepseek-verification-2026-10-22.md)。
 
 
 ### 可选招生官网链接 MCP
@@ -388,7 +398,7 @@ LLM_MODEL_ROUTER=deepseek-flash
 
 2026-10-25补充：已修复启用学情后`L-`批次编号38字符超过既有MySQL字段36字符的问题；新普通练习／诊断统一生成34字符编号，不需修改日常数据库。故障原因、真实临时MySQL验证及本机加载见[批次编号修复](docs/assistant-practice-navigation-verification-2026-10-25.md#批次编号超长修复2026-10-25后续)。
 
-独立MySQL建卷回归：完成上述依赖、Java测试编译及测试类路径准备后，运行`.cache/helloagents-venv/bin/python scripts/smoke-managed-mysql.py --output .cache/new-managed-mysql-report.json`。脚本使用本机MySQL服务端／客户端程序（可用`--mysqld`指定服务端路径），初始化全新临时数据目录、随机回环端口及独立Java／Python进程；仅在该空实例执行V1及V7—V13，使用Redis／供应商／向量替身，结束后清理本次进程和临时数据，不连接日常数据库。输出报告必须使用不存在的新路径。
+独立MySQL建卷回归：完成上述依赖、Java测试编译及测试类路径准备后，运行`.cache/mcp-pdf-venv/bin/python scripts/smoke-managed-mysql.py --output .cache/new-managed-mysql-report.json`。脚本使用本机MySQL服务端／客户端程序（可用`--mysqld`指定服务端路径），初始化全新临时数据目录、随机回环端口及独立Java／Python进程；仅在该空实例执行V1及V7—V13，使用Redis／供应商／向量替身，结束后清理本次进程和临时数据，不连接日常数据库。输出报告必须使用不存在的新路径。
 
 Windows从根目录执行：
 
@@ -407,12 +417,12 @@ npm run test:e2e
 
 Java测试在独立H2库启动真实Python子进程，不读日常MySQL，也不调用模型；子进程结束后清理。浏览器测试使用已有生产构建的Vite preview、隔离上下文和模拟API；须先执行`npm run build`，避免开发态依赖优化重载干扰迟到请求测试。验证页面、历史显示、来源、文本安全和390宽度；不等于整站真实手机验收。
 
-检索/引用质量评测默认离线，不调用模型；`--model` 才读取根`.env`并产生真实供应商请求与费用。使用已安装当前HelloAgents依赖的Python环境执行（本轮隔离环境为`.cache/helloagents-venv`）：
+检索/引用质量评测默认离线，不调用模型；`--model` 才读取根`.env`并产生真实供应商请求与费用。使用已安装当前HelloAgents依赖的Python环境执行（本机可用环境为`.cache/mcp-pdf-venv`，见[准备环境](#准备环境)的本机环境现状）：
 
 ```bash
-.cache/helloagents-venv/bin/python scripts/eval-quality.py --output .cache/quality-report.json
-.cache/helloagents-venv/bin/python scripts/eval-quality.py --backend bm25 --output .cache/quality-bm25.json
-.cache/helloagents-venv/bin/python scripts/eval-quality.py --model --only qa-stack,qa-tcp --output .cache/quality-model.json
+.cache/mcp-pdf-venv/bin/python scripts/eval-quality.py --output .cache/quality-report.json
+.cache/mcp-pdf-venv/bin/python scripts/eval-quality.py --backend bm25 --output .cache/quality-bm25.json
+.cache/mcp-pdf-venv/bin/python scripts/eval-quality.py --model --only qa-stack,qa-tcp --output .cache/quality-model.json
 ```
 
 报告路径已存在时拒绝覆盖；本轮结果与限制见[质量评测记录](docs/quality-eval-2026-10-24.md)。
@@ -471,7 +481,7 @@ python scripts/smoke-question-admin.py --output .cache/new-question-admin-browse
 隔离页面验证（独立H2、随机端口、临时浏览器目录、真实Qdrant，向量使用测试替身）：
 
 ```bash
-.cache/helloagents-venv/bin/python scripts/smoke-chat.py --questions --output .cache/question-browser-new-report.json
+.cache/mcp-pdf-venv/bin/python scripts/smoke-chat.py --questions --output .cache/question-browser-new-report.json
 ```
 
 页面脚本沿用既有Node/Chrome配置，需先完成Java verify和前端build。旧题目索引不自动删除；经授权停用Agent后可运行`scripts/maintain-question-index.py --keep <完整版本>`查看清单，确认范围后再加`--apply`。这不操作业务数据库或知识资料索引。
