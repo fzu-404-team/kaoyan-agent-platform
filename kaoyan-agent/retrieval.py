@@ -290,6 +290,10 @@ class VectorIndex:
         self.client.close()
 
 
+# Chunks ranked before document-level deduplication, for every backend.
+CANDIDATE_CHUNKS = 20
+
+
 class Retriever:
     def __init__(self, settings, corpus, local_files_only=False):
         self.settings, self.corpus, self.vector = settings, corpus, None
@@ -305,19 +309,23 @@ class Retriever:
 
     def search(self, query, domain="knowledge", limit=5, subject=None):
         backend = self.settings.RAG_BACKEND
+        # Citations are document-level: rank a wider set of chunks, keep each
+        # document's best chunk, then cut. Cutting first lets several chunks of
+        # one long document crowd out other documents.
+        wide = max(limit, CANDIDATE_CHUNKS)
         if backend == "lexical":
-            return _dedupe(self.corpus.lexical(query, domain, limit, subject))
+            return _dedupe(self.corpus.lexical(query, domain, wide, subject))[:limit]
         if backend == "bm25":
-            return _dedupe(self.corpus.bm25(query, domain, limit, subject))
+            return _dedupe(self.corpus.bm25(query, domain, wide, subject))[:limit]
         if backend == "qdrant":
-            return _dedupe(self._vector_index().search(query, domain, limit, subject))
+            return _dedupe(self._vector_index().search(query, domain, wide, subject))[:limit]
         if backend == "hybrid":
             # Reciprocal-rank fusion; lexical remains available when the vector
             # index is absent so a demo does not fail before `ingest.py` ran.
-            lexical = self.corpus.bm25(query, domain, 20, subject)
+            lexical = self.corpus.bm25(query, domain, wide, subject)
             vector = []
             try:
-                vector = self._vector_index().search(query, domain, 20, subject)
+                vector = self._vector_index().search(query, domain, wide, subject)
             except (RuntimeError, ImportError, OSError, *_vector_failures()) as error:
                 # Remote Qdrant/connection errors are not RuntimeError subclasses.
                 log.warning("hybridVectorFailure=%s", type(error).__name__)
