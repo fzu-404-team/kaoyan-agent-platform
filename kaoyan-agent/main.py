@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from config import PLAN_FALLBACK_SECONDS, Settings, provider_identifier
 from conversation import ConversationWorkflow
 from core.admission_client import AdmissionLinksTool, McpAdmissionClient
+from core.logs import configure_logging
 from core.mcp_client import McpKnowledgeClient, McpKnowledgeSearchTool
 from core.mcp_runtime import McpErrorCode, McpState, McpStatus
 from core.runtime import CallBudget, admission_budget, execution_budget, retrieval_budget
@@ -29,6 +30,7 @@ log = logging.getLogger(__name__)
 
 def create_app(settings=None, model=None, retriever=None, question_index=None):
     settings = settings or Settings()
+    configure_logging(settings.LOG_LEVEL)
     token_counting = TokenCounter().mode
     if token_counting == FALLBACK_MODE:
         # Byte counting shrinks every Chinese input allowance to roughly a third.

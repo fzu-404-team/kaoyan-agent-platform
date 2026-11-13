@@ -1,8 +1,9 @@
 from pathlib import Path
 from typing import Literal
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from urllib.parse import urlsplit, urlunsplit
+from core.logs import LOG_LEVELS
 from source_policy import DEFAULT_SOURCE_POLICY
 
 ROOT = Path(__file__).resolve().parent
@@ -67,6 +68,15 @@ class Settings(BaseSettings):
     QUESTION_MODEL_CACHE: Path = ROOT / ".cache" / "embedding"
     QUESTION_MIN_SCORE: float = Field(default=0.75, ge=0, le=1)
     LOG_LEVEL: str = "INFO"
+
+    @field_validator("LOG_LEVEL")
+    @classmethod
+    def known_log_level(cls, value: str) -> str:
+        """Accept any letter case; an unknown level is a configuration error."""
+        level = value.strip().upper()
+        if level not in LOG_LEVELS:
+            raise ValueError("LOG_LEVEL 仅支持 " + "/".join(LOG_LEVELS))
+        return level
 
     @model_validator(mode="after")
     def validate_settings(self):
