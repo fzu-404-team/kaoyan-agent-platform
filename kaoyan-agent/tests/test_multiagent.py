@@ -180,7 +180,9 @@ async def test_failed_optional_school_expert_retains_study_result(monkeypatch):
     result = await flow.run(request("安排3天复习计划，并推荐院校"))
     assert result["outcome"] == "COMPLETED"
     assert len(result["studyPlan"]["days"]) == 3
-    assert "SCHOOL：暂时不可用" in result["notice"]
+    # 2026-11-13: the user-facing label, never the internal expert name.
+    assert "院校比较：暂时不可用" in result["notice"]
+    assert "SCHOOL" not in result["notice"] + result["answer"]
     assert "candidates" not in result
 
 

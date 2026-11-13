@@ -32,7 +32,7 @@ from core.runtime import (
     step_rules_reason,
     stream_sink,
 )
-from core.scheduling import MIN_MODEL_SECONDS, schedule_steps
+from core.scheduling import EXPERT_LABELS, MIN_MODEL_SECONDS, schedule_steps
 from core.model import prepare_input
 from grounding import numbers_supported, verify
 from learning import (
@@ -198,14 +198,7 @@ class ConversationCoordinator(StructuredAgent):
         sink = stream_sink.get()
         allowance = CallBudget(EXPERT_MODEL_LIMIT)
         phase_token = phase_budget.set(allowance)
-        labels = {
-            "LEARNING": "学情分析",
-            "SCHOOL": "院校比较",
-            "KNOWLEDGE": "知识辅导",
-            "PRACTICE": "练习建议",
-            "NOTE": "笔记建议",
-            "STUDY_PLAN": "复习安排",
-        }
+        labels = EXPERT_LABELS
 
         external = safe_learning_context(req, plan=resolution)
 

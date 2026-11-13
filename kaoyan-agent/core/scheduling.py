@@ -14,6 +14,15 @@ log = logging.getLogger(__name__)
 # A model request is not started when less stage time remains (measured steps up to 8.5 s).
 MIN_MODEL_SECONDS = 8.0
 MODEL_PRIORITY = {name: index for index, name in enumerate(("LEARNING", "SCHOOL", "KNOWLEDGE", "STUDY_PLAN", "NOTE", "PRACTICE"))}
+# User-facing section names; internal expert names never appear in answers or notices.
+EXPERT_LABELS = {
+    "LEARNING": "学情分析",
+    "SCHOOL": "院校比较",
+    "KNOWLEDGE": "知识辅导",
+    "PRACTICE": "练习建议",
+    "NOTE": "笔记建议",
+    "STUDY_PLAN": "复习安排",
+}
 
 
 def unavailable(notice: str) -> dict:
@@ -74,7 +83,7 @@ async def schedule_steps(
             completed[step.agent] = unavailable("专家单步超时，本项未完成。")
         except MODEL_FAILURES + (McpCallError, ToolUnavailable) as error:
             failure = type(error).__name__
-            completed[step.agent] = unavailable(step.agent + "：暂时不可用")
+            completed[step.agent] = unavailable(EXPERT_LABELS[step.agent] + "：暂时不可用")
         except Exception as error:
             failure = type(error).__name__
             raise
