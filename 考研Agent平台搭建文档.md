@@ -1,5 +1,15 @@
 # 考研 Agent 平台搭建文档
 
+## Agent审查修复契约（2026-11-13）
+
+本节确定本轮实施契约，实际验证见[验证记录](docs/agent-review-fixes-verification-2026-11-13.md)。范围仅限Python Agent的四项修复，不改任务类型、终态、公开结果字段、SSE事件、调用次数上限或数据库。
+
+- 输入计量词表：离线计量依次查找 `TIKTOKEN_CACHE_DIR`、`DATA_GYM_CACHE_DIR`（已设置且非空时）、项目内 `kaoyan-agent/.cache/tiktoken`、系统临时目录的 `data-gym-cache`，取第一份SHA-256校验通过的cl100k_base词表；仍不经tiktoken下载入口，服务进程不联网。全部缺失时沿用 `utf8_piece_upper_bound` 保守估算，预算数值与语义不变，但启动时输出一条WARNING。词表由 `scripts/prepare-tokenizer.py` 一次性下载并校验后写入项目缓存，脚本不随服务启动执行。两种模式均为本地估算，不是供应商真实用量。
+- `GET /health` 新增 `tokenCounting`，取值 `cl100k_base_estimate` 或 `utf8_piece_upper_bound`，只读进程内状态；现有字段与status语义不变，Java现有读取不受影响。
+- 知识问答检索不可用：单项知识问答在检索工具不可用（索引缺失、MCP连接／超时／调用上限等固定分类）时返回 `outcome=UNSUPPORTED`、`explanationMode=rules` 及固定提示，不调用模型、不改用未审核内容、不切回本地检索，不再使整个任务失败；复合请求中的知识专家返回同一结果。这改变了2026-10-30可靠性验证中“知识MCP不可用时同步 `/internal/rag/chat` 返回FAILED”的既有表现：任务现以SUCCESS结束并保存该提示，Java侧按成功轮次处理（是否计入任务配额与历史沿用Java现有规则，本轮未改、未验证）。该变化经用户2026-11-13确认保留。
+- 供应商空结果：非流式响应不含任何choices时按 `INVALID_OUTPUT` 降级，保留规则结果；该次请求已计入调用次数，不重试。
+- 日志：此前日志输出来自 `hello-agents==0.2.8` 导入时调用的 `logging.basicConfig(level=INFO)`，级别固定为INFO、无时间戳、第三方INFO一并输出，`LOG_LEVEL` 不生效。现由 `core/framework.py` 在导入框架后恢复根日志器原状（不修改已安装包），入口工厂按 `LOG_LEVEL`（DEBUG／INFO／WARNING／ERROR／CRITICAL，大小写不敏感，非法值拒绝启动）配置进程日志；仅当根日志器尚无处理器时安装，不覆盖外部日志配置。输出格式为“时间 级别 模块 消息”，项目模块按该级别输出，第三方库仅输出WARNING及以上。日志内容仍限于既有固定分类、耗时与计数，不新增正文、凭证或个人上下文。升级框架版本时须重新核对该导入副作用。
+
 ## 线上模型配置启用契约（2026-11-03）
 
 根据用户本轮“在服务器配置大模型，沿用本机配置”的明确要求，将当前项目本机供应商地址、API凭证、主模型、路由模型和thinking模式同步到已部署服务器，并开启LLM。只更新上述模型配置，不复制整份本机环境文件；保留线上模型每日20次上限、任务额度、账号外发授权、注册关闭、OSS目录及其他运行配置。启用全局模型不代表替用户同意个人数据外发，仍需本人在对话隐私设置中授权相应类别及当前供应商。

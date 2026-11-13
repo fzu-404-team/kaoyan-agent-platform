@@ -1,5 +1,21 @@
 # 考研 Agent 智能备考平台
 
+## Agent审查修复（2026-11-13）
+
+仅改Python Agent，四项：输入计量词表改为优先读取项目内缓存并在 `/health` 的 `tokenCounting` 显示当前计量模式；单项知识问答在检索不可用时明确说明，不再整单失败；供应商返回空结果时按既有原因码降级；`LOG_LEVEL` 开始生效，日志带时间戳，第三方库只输出WARNING及以上。任务类型、公开结果字段、SSE与调用次数上限不变，无数据库迁移。
+
+词表需一次性准备（从项目根目录执行，下载约1.7MB公开词表并校验SHA-256，不调用模型、不读取业务数据），之后重启Agent生效：
+
+```bash
+.cache/mcp-pdf-venv/bin/python scripts/prepare-tokenizer.py
+```
+
+上例为本机已装全当前依赖的环境，其他机器使用自行安装requirements的Python。未准备时服务照常启动，按保守的字节估算计量：中文输入额度约为原来的三分之一，意图解析基本带不上对话历史，启动日志有一条 `tokenCounting=utf8_piece_upper_bound` 的WARNING。
+
+脚本使用环境内 `certifi` 的根证书校验下载连接。本机已于2026-11-13执行并校验通过，词表位于 `kaoyan-agent/.cache/tiktoken`（不提交）；其他机器和服务器需各自执行一次。
+
+离线pytest 995项通过（新增14项回归，更新1条既有断言），在字节估算和真实词表两种计量模式下各跑一遍；真实模型、Java与前端联动均未运行，日常服务未重启。契约见[搭建文档](考研Agent平台搭建文档.md#agent审查修复契约2026-11-13)，范围与结果见[验证记录](docs/agent-review-fixes-verification-2026-11-13.md)。
+
 ## 线上DeepSeek模型已启用（2026-11-03）
 
 按用户要求沿用当前项目本机模型配置，服务器已开启DeepSeek，主模型和路由模型均为 `deepseek-flash`，thinking为disabled。已仅重启Python Agent并核对运行进程配置；真实HelloAgents适配层连通请求1次通过，公网首页与注册关闭检查通过。保留线上每日20次模型调用上限及账号原有隐私授权，使用个人数据须本人在对话“隐私”中授权当前供应商及相应类别。密钥不写入仓库；备份、回退及验证边界见[模型配置记录](docs/server-llm-verification-2026-11-03.md)。
