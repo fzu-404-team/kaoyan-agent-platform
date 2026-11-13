@@ -237,7 +237,15 @@ def test_app_isolates_one_tool_and_health_never_calls_tools(failed: Kind, tmp_pa
             assert health["mcpTools"][other]["state"] == "READY"
         assert all("call" not in (tmp_path / kind).read_text().splitlines() for kind in ("knowledge", "admission"))
         response = http.post("/internal/rag/chat", headers=HEADERS, json=request("KNOWLEDGE_QA", userInput="解释进程"))
-        assert response.json()["status"] == ("FAILED" if failed == "knowledge" else "SUCCESS")
+        # 2026-11-13: an unavailable knowledge tool is stated in the result, never
+        # replaced by local retrieval and no longer a failed task.
+        chat = response.json()
+        assert chat["status"] == "SUCCESS"
+        if failed == "knowledge":
+            assert chat["result"]["outcome"] == "UNSUPPORTED" and chat["references"] == []
+            assert "检索暂时不可用" in chat["result"]["answer"]
+        else:
+            assert "检索暂时不可用" not in chat["result"]["answer"]
         body = request("CHAT", userInput="查官网南京审计大学")
         plan = http.post("/internal/rag/conversation/plan", headers=HEADERS, json=body).json()
         response = http.post("/internal/rag/conversation/stream", headers=HEADERS, json={**body, "preparedPlan": plan})

@@ -3,7 +3,8 @@
 import logging
 
 from agents.base import StructuredAgent
-from core.errors import MODEL_FAILURES, InvalidModelOutput, fallback_reason, failure_reason
+from core.errors import MODEL_FAILURES, InvalidModelOutput, ToolUnavailable, fallback_reason, failure_reason
+from core.mcp_runtime import McpCallError
 from core.model import prepare_input
 from grounding import fully_supported, verify
 from core.runtime import withhold_model_deltas
@@ -40,9 +41,20 @@ class KnowledgeAgent(StructuredAgent):
                 )
             ]
 
-        docs = await search(subject)
-        if not docs and subject:
-            docs = await search(None)
+        try:
+            docs = await search(subject)
+            if not docs and subject:
+                docs = await search(None)
+        except (McpCallError, ToolUnavailable, TimeoutError) as error:
+            # An unavailable index or tool is not "no coverage"; say so and stop
+            # before any model request instead of failing the whole task.
+            log.warning("qaRetrievalFailure=%s", type(error).__name__)
+            return {
+                "outcome": "UNSUPPORTED",
+                "answer": "审核资料检索暂时不可用，本轮未生成回答；请稍后重试。",
+                "notice": "资料检索不可用，未调用模型。",
+                "explanationMode": "rules",
+            }
         if not docs:
             return {
                 "outcome": "UNSUPPORTED",

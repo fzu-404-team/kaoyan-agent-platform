@@ -86,6 +86,9 @@ class AsyncHelloAgentsLLM(HelloAgentsLLM):
             stream=False,
             **kwargs,
         )
+        # Some providers answer a filtered or rejected request with no choice at all.
+        if not response.choices:
+            raise InvalidModelOutput("model_output_missing")
         if response.choices[0].finish_reason == "length":
             raise InvalidModelOutput("model_output_truncated")
         return response.choices[0].message.content or ""
