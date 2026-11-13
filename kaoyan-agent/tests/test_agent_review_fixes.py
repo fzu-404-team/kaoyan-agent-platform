@@ -2,6 +2,7 @@
 
 import base64
 import hashlib
+import json
 import logging
 import os
 import re
@@ -20,9 +21,13 @@ from core.errors import InvalidModelOutput, ModelUnavailable, ToolUnavailable, f
 from core.logs import PROJECT_ROOT, ProjectRecords, configure_logging
 from core.mcp_runtime import McpCallError, McpErrorCode
 from core.model import AsyncHelloAgentsLLM
+from core.runtime import stream_sink
+from grounding import sentences
 from main import create_app
 from retrieval import Corpus, Retriever
-from schemas import ChatRequest
+from schemas import Answer, ChatRequest, CombinedAnswer, Explanations
+from tests.test_review_fixes import consent, enabled_flow
+from tests.test_review_fixes import request as conversation_request
 from tools.knowledge import SearchParameters
 from tools.registry import ValidatedTool
 from workflows import Workflows
@@ -212,3 +217,107 @@ def test_log_level_is_normalized_and_validated():
     assert settings(LOG_LEVEL=" info ").LOG_LEVEL == "INFO"
     with pytest.raises(ValidationError):
         settings(LOG_LEVEL="verbose")
+
+
+# ---- Second batch (review items 5-7): labels, document-level retrieval, withheld deltas ----
+
+
+def test_chunks_of_one_long_document_do_not_crowd_out_other_documents(tmp_path):
+    # Lexical only: BM25Index counts term occurrences as document frequency, so a
+    # repetitive synthetic corpus gets negative IDF there (reported separately).
+    config = settings(RAG_BACKEND="lexical")
+    template = next(row for row in json.loads(Path(config.RAG_DATA).read_text(encoding="utf-8"))
+                    if row["domain"] == "knowledge")
+
+    def document(identifier: str, content: str) -> dict:
+        return {**template, "id": identifier, "title": identifier, "content": content, "keywords": []}
+
+    records = [document("long-doc", "拥塞窗口与慢开始门限共同决定发送速率。" * 150)]
+    records += [document(f"short-{index}", f"第{index}篇资料说明拥塞窗口的调整。") for index in range(4)]
+    path = tmp_path / "corpus.json"
+    path.write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8")
+    corpus = Corpus(path, config.RAG_SOURCE_POLICY_FILE)
+    assert sum(chunk.id.startswith("long-doc#") for chunk in corpus.chunks) > 5
+    found = Retriever(config, corpus).search("拥塞窗口与慢开始门限", "knowledge", 5)
+    assert sorted(chunk.id.split("#")[0] for chunk in found) == ["long-doc", "short-0", "short-1", "short-2", "short-3"]
+
+
+class LeakyModel:
+    """Emits an unvalidated delta on every generation, then returns grounded output."""
+
+    def __init__(self, summary) -> None:
+        self.summary, self.schemas = summary, []
+
+    async def generate(self, instruction, payload, schema, router=False):
+        if router:
+            raise ModelUnavailable("not_scripted")
+        self.schemas.append(schema)
+        sink = stream_sink.get()
+        if sink is not None:
+            await sink({"type": "delta", "slot": "answer", "offset": 0, "text": "untrusted99999"})
+        if schema is Answer:
+            reference = payload["references"][0]
+            return Answer(answer=sentences(reference["content"])[0], sourceIds=[reference["id"]])
+        if schema is Explanations:
+            sources = {row["id"]: row["content"] for row in payload["sources"]}
+            return Explanations(explanations=[
+                {"programId": row["programId"], "text": sentences(sources[row["sourceIds"][0]])[0],
+                 "sourceIds": row["sourceIds"]}
+                for row in payload["candidates"]
+            ])
+        if schema is CombinedAnswer:
+            return CombinedAnswer(answer=self.summary(payload))
+        raise ModelUnavailable("not_scripted")
+
+    async def close(self) -> None:
+        pass
+
+
+SCHOOL_REQUEST = {"profile": {"examYear": 2027, "targetMajor": "081200"},
+                  "preferences": {"degreeType": "academic", "explainWithAi": True}}
+
+
+async def collect(run) -> tuple[dict, list[dict]]:
+    """Run one flow with a recording stream sink."""
+    events: list[dict] = []
+
+    async def sink(event: dict) -> None:
+        events.append(event)
+
+    token = stream_sink.set(sink)
+    try:
+        return await run(), events
+    finally:
+        stream_sink.reset(token)
+
+
+@pytest.mark.asyncio
+async def test_school_explanations_are_not_streamed_before_source_checks():
+    model = LeakyModel(None)
+    flow, config = enabled_flow(model)
+    req = conversation_request("推荐院校", taskType="SCHOOL_RECOMMEND",
+                               privacy=consent(config, "profile"), **SCHOOL_REQUEST)
+    result, events = await collect(lambda: flow.engine.schools(req))
+    assert model.schemas == [Explanations] and result["explanationMode"] == "ai"
+    assert not any(event["type"] == "delta" for event in events)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("summary", "mode"), [
+    (lambda payload: payload["sections"][0]["answer"], "ai"),
+    (lambda payload: "建议改报金融学硕士，录取概率99999%。", "rules"),
+])
+async def test_compound_summary_is_not_streamed_before_its_checks(summary, mode):
+    model = LeakyModel(summary)
+    flow, config = enabled_flow(model)
+    text = "解释TCP可靠传输，并推荐院校"
+    base = {"privacy": consent(config, "profile"), **SCHOOL_REQUEST}
+    plan = await flow.plan(conversation_request(text, **base))
+    assert [step.agent for step in plan.steps] == ["KNOWLEDGE", "SCHOOL"]
+    result, events = await collect(
+        lambda: flow.run(conversation_request(text, preparedPlan=plan.model_dump(by_alias=True), **base))
+    )
+    # The summary branch really ran; otherwise this test would prove nothing.
+    assert CombinedAnswer in model.schemas
+    assert result["explanationMode"] == mode and "99999" not in result["answer"]
+    assert [event["type"] for event in events] == ["stage", "stage"]

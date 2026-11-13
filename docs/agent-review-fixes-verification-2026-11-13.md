@@ -78,3 +78,49 @@
 - 服务器及其他机器未准备词表。
 - 向量索引缺失、真实Qdrant故障下的知识问答未实测；`qdrant` 后端的远程连接异常不属于 `ToolUnavailable`，仍可能使任务失败，本轮未处理。
 - Java `verify`、前端构建、三端联调、浏览器回归未运行；日常Agent未重启，本轮修改尚未在日常服务生效。
+
+## 第二批：审查第5—8项
+
+第一批已按功能拆为4个提交（`8be1589`、`22cb994`、`90dab6f`、`29a98f5`），位于 `adaptation-main`，未推送。以下为其后的修改。
+
+### 修改
+
+| 文件 | 内容 |
+| --- | --- |
+| `kaoyan-agent/core/scheduling.py` | 新增 `EXPERT_LABELS`；专家预期故障的提示由“SCHOOL：暂时不可用”改为“院校比较：暂时不可用” |
+| `kaoyan-agent/agents/coordinator.py` | 复用同一标签表；综合汇总生成期间扣住正文增量 |
+| `kaoyan-agent/retrieval.py` | lexical／bm25／qdrant先取20个候选块，去重后再截取；hybrid改用同一常量 |
+| `kaoyan-agent/agents/school.py` | 院校候选解释生成期间扣住正文增量 |
+| `kaoyan-agent/tests/test_agent_review_fixes.py` | 新增4项回归 |
+| `kaoyan-agent/tests/test_multiagent.py` | 既有断言由“SCHOOL：暂时不可用”改为中文标签，并断言结果中不含 `SCHOOL` |
+| `README.md`、`docs/rag.md`、搭建文档 | 同步契约、环境说明与命令 |
+
+### 验证结果
+
+- 全量pytest（`.cache/mcp-pdf-venv`，真实词表计量模式）：999项通过，0失败。
+- 反向检查：临时把两处增量扣留替换为空操作、把候选块数置0后，本批4项新用例全部失败，说明用例确实覆盖了修改点。
+- 综合汇总用例实际走到了汇总分支（断言模型收到 `CombinedAnswer` 请求），分别覆盖汇总被采纳与被拒绝两种情况，流事件只有两条stage，无delta。
+- 检索去重用例使用临时合成语料（1篇约2850字的长文档加4篇短文档）和lexical后端；修改前该查询只能返回长文档1篇，修改后返回5篇。当前仓库语料每篇仅1个块，线上结果不受影响。
+
+### README环境核对
+
+对本文引用的脚本逐个检查顶层导入能否在各环境解析（静态导入检查，未实际运行这些脚本）：
+
+| 环境 | 结果 |
+| --- | --- |
+| `.cache/mcp-pdf-venv` | 10个脚本与 `main` 全部可导入；`pip check` 无冲突；requirements、requirements-dev与约束文件中的固定版本全部一致 |
+| `.cache/helloagents-venv` | `main`、`eval-quality.py`、`check-admission.py` 因缺 `mcp` 不能导入；`smoke-learning.py`、`smoke-chat.py`、`smoke-managed-mysql.py` 自身可导入，但会用当前解释器启动Agent，同样不可用 |
+| 根目录 `.venv` | 缺 `hello_agents`，不能导入 `main` |
+
+据此把README中7处需要启动或导入Agent的命令改为 `.cache/mcp-pdf-venv`，并在“准备环境”补充本机环境现状表。未安装、升级或删除任何环境中的包。
+
+### 发现但未处理
+
+`retrieval.py` 的 `BM25Index` 用 `doc_freq.update(values)` 统计文档频率，实际累加的是词的出现次数而非包含该词的文档数。在31篇真实语料上：2312个多字词中317个计数被放大，7个词的IDF为负（如“计算”计48、实际17篇）；抽查15条查询，2条的前5排序与按真实文档频率计算的结果不同。只影响 `RAG_BACKEND=bm25` 与 `hybrid`，默认的lexical不受影响。修正会改变这两种后端的排序和既有质量评测基线，需单独确认后处理。
+
+### 未运行
+
+- 真实模型、Java `verify`、前端构建、三端联调与浏览器回归未运行；院校解释和综合汇总不再逐字输出的页面表现未在浏览器中查看。
+- qdrant与hybrid后端的去重顺序只做了代码修改，未用真实向量索引验证。
+- README中改写的脚本命令只做了导入检查，未实际执行。
+- 日常Agent未重启。
