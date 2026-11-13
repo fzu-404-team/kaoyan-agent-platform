@@ -31,6 +31,7 @@ from core.runtime import (
     phase_budget,
     step_rules_reason,
     stream_sink,
+    withhold_model_deltas,
 )
 from core.scheduling import EXPERT_LABELS, MIN_MODEL_SECONDS, schedule_steps
 from core.model import prepare_input
@@ -312,14 +313,17 @@ class ConversationCoordinator(StructuredAgent):
                      "references": [{**ref, "content": ref["excerpt"]} for ref in result["references"]]},
                     CombinedAnswer,
                 )
-                answer = await asyncio.wait_for(
-                    self.model.generate(
-                        get("coordinator_summary"),
-                        prepared.payload,
-                        CombinedAnswer,
-                    ),
-                    timeout=self.settings.CONVERSATION_SUMMARY_TIMEOUT,
-                )
+                # The rewrite replaces checked expert answers only after its own
+                # support and number checks; no unverified prose is shown first.
+                with withhold_model_deltas():
+                    answer = await asyncio.wait_for(
+                        self.model.generate(
+                            get("coordinator_summary"),
+                            prepared.payload,
+                            CombinedAnswer,
+                        ),
+                        timeout=self.settings.CONVERSATION_SUMMARY_TIMEOUT,
+                    )
                 ids = set(answer.sourceIds)
                 if not ids <= set(references):
                     raise InvalidModelOutput("unknown_source")

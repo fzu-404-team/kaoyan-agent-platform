@@ -8,6 +8,7 @@ from core.errors import MODEL_FAILURES, InvalidModelOutput, fallback_reason, fai
 from core.model import prepare_input
 from core.admission_contract import AdmissionLinksResult
 from core.mcp_runtime import McpCallError, McpErrorCode
+from core.runtime import withhold_model_deltas
 from grounding import aggregate, verify
 from learning import has_scope, model_allowed, model_messages
 from prompts import get
@@ -239,7 +240,10 @@ class SchoolAgent(StructuredAgent):
                     },
                     Explanations,
                 )
-                answer = await self.model.generate(get("tuijian_yuanxiao"), prepared.payload, Explanations)
+                # Admission prose is shown only after each explanation is checked
+                # against its sources; the stream stays open and cancellable.
+                with withhold_model_deltas():
+                    answer = await self.model.generate(get("tuijian_yuanxiao"), prepared.payload, Explanations)
                 mapping = {e.programId: e for e in answer.explanations}
                 if len(mapping) != len(answer.explanations) or set(mapping) != {
                     c["programId"] for c in candidates
