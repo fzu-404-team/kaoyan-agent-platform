@@ -17,6 +17,7 @@ from core.admission_client import AdmissionLinksTool, McpAdmissionClient
 from core.mcp_client import McpKnowledgeClient, McpKnowledgeSearchTool
 from core.mcp_runtime import McpErrorCode, McpState, McpStatus
 from core.runtime import CallBudget, admission_budget, execution_budget, retrieval_budget
+from core.tokens import FALLBACK_MODE, TokenCounter
 from llm_client import ModelClient, quota_exempt, request_model_calls, stream_sink
 from question_search import IndexRequest, QuestionIndex, SearchRequest
 from retrieval import Corpus, Retriever
@@ -28,6 +29,10 @@ log = logging.getLogger(__name__)
 
 def create_app(settings=None, model=None, retriever=None, question_index=None):
     settings = settings or Settings()
+    token_counting = TokenCounter().mode
+    if token_counting == FALLBACK_MODE:
+        # Byte counting shrinks every Chinese input allowance to roughly a third.
+        log.warning("tokenCounting=%s vocabulary=MISSING prepare=scripts/prepare-tokenizer.py", token_counting)
     corpus = Corpus(settings.RAG_DATA, settings.RAG_SOURCE_POLICY_FILE)
     model = model or ModelClient(settings)
     # Serving never downloads embedding weights; ingest.py prepares them.
@@ -127,6 +132,7 @@ def create_app(settings=None, model=None, retriever=None, question_index=None):
             "releaseId": corpus.release_id,
             "retrievalBackend": settings.RAG_BACKEND,
             "modelEnabled": settings.LLM_ENABLED,
+            "tokenCounting": token_counting,
             "admissionMcpEnabled": settings.ADMISSION_MCP_ENABLED,
             "mcpTools": {
                 "knowledge": (mcp_client.status if mcp_client is not None else
