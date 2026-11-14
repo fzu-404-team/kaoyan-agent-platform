@@ -75,7 +75,9 @@ class BM25Index:
         self.term_freq = [Counter(values) for values in tokenized]
         self.doc_freq = Counter()
         for values in tokenized:
-            self.doc_freq.update(values)
+            # Document frequency counts chunks containing a term, not occurrences:
+            # counting occurrences pushes the IDF of repeated terms below zero.
+            self.doc_freq.update(set(values))
         self.total = len(chunks)
 
     def search(self, query, domain, limit=5, subject=None):

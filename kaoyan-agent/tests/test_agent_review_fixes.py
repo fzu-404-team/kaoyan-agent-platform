@@ -222,10 +222,9 @@ def test_log_level_is_normalized_and_validated():
 # ---- Second batch (review items 5-7): labels, document-level retrieval, withheld deltas ----
 
 
-def test_chunks_of_one_long_document_do_not_crowd_out_other_documents(tmp_path):
-    # Lexical only: BM25Index counts term occurrences as document frequency, so a
-    # repetitive synthetic corpus gets negative IDF there (reported separately).
-    config = settings(RAG_BACKEND="lexical")
+@pytest.mark.parametrize("backend", ["lexical", "bm25"])
+def test_chunks_of_one_long_document_do_not_crowd_out_other_documents(tmp_path, backend):
+    config = settings(RAG_BACKEND=backend)
     template = next(row for row in json.loads(Path(config.RAG_DATA).read_text(encoding="utf-8"))
                     if row["domain"] == "knowledge")
 
@@ -321,3 +320,31 @@ async def test_compound_summary_is_not_streamed_before_its_checks(summary, mode)
     assert CombinedAnswer in model.schemas
     assert result["explanationMode"] == mode and "99999" not in result["answer"]
     assert [event["type"] for event in events] == ["stage", "stage"]
+
+
+# ---- 2026-11-14: BM25 document frequency ----
+
+
+def test_bm25_document_frequency_counts_chunks_not_occurrences(tmp_path):
+    config = settings(RAG_BACKEND="bm25")
+    template = next(row for row in json.loads(Path(config.RAG_DATA).read_text(encoding="utf-8"))
+                    if row["domain"] == "knowledge")
+
+    def document(identifier: str, content: str) -> dict:
+        return {**template, "id": identifier, "title": identifier, "content": content, "keywords": []}
+
+    # "死锁" occurs 30 times in one chunk: more occurrences than there are chunks.
+    records = [document("deadlock", "死锁的必要条件。" * 30),
+               document("paging", "分页把地址空间划分为固定大小的页。"),
+               document("routing", "路由器根据转发表选择下一跳。")]
+    path = tmp_path / "corpus.json"
+    path.write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8")
+    corpus = Corpus(path, config.RAG_SOURCE_POLICY_FILE)
+    corpus.bm25("死锁", "knowledge", 5)
+    index = corpus._bm25
+    assert index.total == 3 and index.doc_freq["死锁"] == 1
+    assert all(count <= index.total for count in index.doc_freq.values())
+    # The only chunk about the topic is found instead of being scored below zero.
+    assert [chunk.id for chunk in corpus.bm25("死锁", "knowledge", 5)] == ["deadlock#0"]
+    assert corpus.bm25("三次握手", "knowledge", 5) == []
+
