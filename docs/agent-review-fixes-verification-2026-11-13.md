@@ -114,7 +114,7 @@
 
 据此把README中7处需要启动或导入Agent的命令改为 `.cache/mcp-pdf-venv`，并在“准备环境”补充本机环境现状表。未安装、升级或删除任何环境中的包。
 
-### 发现但未处理
+### 发现但未处理（BM25已于2026-11-14修正，见后文）
 
 `retrieval.py` 的 `BM25Index` 用 `doc_freq.update(values)` 统计文档频率，实际累加的是词的出现次数而非包含该词的文档数。在31篇真实语料上：2312个多字词中317个计数被放大，7个词的IDF为负（如“计算”计48、实际17篇）；抽查15条查询，2条的前5排序与按真实文档频率计算的结果不同。只影响 `RAG_BACKEND=bm25` 与 `hybrid`，默认的lexical不受影响。修正会改变这两种后端的排序和既有质量评测基线，需单独确认后处理。
 
@@ -124,3 +124,67 @@
 - qdrant与hybrid后端的去重顺序只做了代码修改，未用真实向量索引验证。
 - README中改写的脚本命令只做了导入检查，未实际执行。
 - 日常Agent未重启。
+
+## 2026-11-14：BM25修正与两项核实
+
+第二批已按功能拆为5个提交（`fa19b0e`、`5e9b573`、`d92fa36`、`5af0f19`、`012cf36`），未推送。以下为其后的工作。环境同上（`.cache/mcp-pdf-venv`，真实词表计量模式）。
+
+### BM25文档频率修正
+
+- 修改：`kaoyan-agent/retrieval.py` 的 `BM25Index` 由 `doc_freq.update(values)` 改为 `doc_freq.update(set(values))`，文档频率按“包含该词的块数”统计。
+- 回归：`test_agent_review_fixes.py` 新增 `test_bm25_document_frequency_counts_chunks_not_occurrences`（某词在单个块内出现30次、多于块总数时仍能命中该块，且任何词的文档频率不超过块数）；长文档不挤占名额的用例补上bm25后端。该bm25用例在修正前返回空结果。
+- 全量pytest：1001项通过，0失败。
+- 离线质量评测（不调用模型，`--data kaoyan-agent/knowledge/corpus.json`）修改前后各跑一次：`bm25` 与 `hybrid`（本机无向量标记，按设计回退BM25）均为10/10，逐例结果完全一致。报告在 `.cache/review-bm25fix-{before,after}-{bm25,hybrid}-20261114.json`，不提交。
+- 31篇真实语料：IDF为负的多字词由7个降为0，文档频率超过块数的词为0。抽查15条查询，2条（“进程和线程的区别”“虚拟内存”）前5的顺序变化，结果集合不变，其余13条不变。
+- 未验证：真实向量索引下的hybrid融合排序；日常服务当前为lexical，本次修正对其无影响。
+
+### 核实一：`max_completion_tokens` 未被当前供应商采纳
+
+经用户同意发出1次真实请求（本机配置：`https://api.deepseek.com`，`deepseek-flash`，thinking为disabled）。请求参数与应用一致（temperature 0、JSON模式、非流式、SDK不重试），仅把 `max_completion_tokens` 设为16；提示为合成的TCP拥塞控制说明请求，不含个人资料、历史或业务数据。直接使用SDK客户端发出，未经应用预算计数，未创建任务。
+
+| 项 | 结果 |
+| --- | --- |
+| 结束原因 | `stop`（若上限生效应为 `length`） |
+| 输出用量 | 200 tokens（上限设为16） |
+| 正文长度 | 329字符 |
+| 输入用量 | 59 tokens |
+| 耗时 | 2.57秒 |
+
+结论：该参数在DeepSeek的兼容接口上没有生效。因此 `MODEL_OUTPUT_TOKENS`、`PLAN_OUTPUT_TOKENS`、`NOTE_OUTPUT_TOKENS`、`STUDY_OUTPUT_TOKENS` 四个输出上限目前都没有传达到供应商，实际上限是供应商的默认值；应用侧的截断检测（`finish_reason=length`）和15万字符保护仍然有效。仅1次样本，也未测试智谱端点。未取得账单，不估算费用。该结论促成了下文的修复。
+
+### 核实二：汇总4秒超时偏紧，证据有限
+
+未为此追加真实请求，依据是两条已有的真实耗时：
+
+- 本次请求：本机发出，输出200 tokens，总耗时2.57秒。
+- [服务器模型配置记录](server-llm-verification-2026-11-03.md)：服务器发出，输出仅5 tokens，耗时3.709秒。
+
+汇总需要重述至少两位专家的回答，输出通常远多于200 tokens；而服务器上输出5 tokens已用去3.7秒。据此判断4秒内完成汇总的可能性较低，超时后会回退本地拼接，但已消耗1次模型调用和1次每日额度（服务器每日上限20次）。这只是两条不同提示、不同机器的样本，不是对汇总请求本身的测量；汇总的实际成功率未测。时限为2026-11-03经用户确认的参数，本轮未调整。
+
+### 修复：输出上限改用 `max_tokens`
+
+- 修改：`kaoyan-agent/core/model.py` 中 `AsyncHelloAgentsLLM` 的非流式 `ainvoke` 与流式 `astream_invoke` 均改为以 `max_tokens` 传递上限，数值不变。契约见搭建文档“2026-11-14 输出上限参数”。
+- 断言：`test_deepseek.py` 改为断言请求体含 `max_tokens` 且不含 `max_completion_tokens`；`test_provider_baseline.py` 在测试内把冻结基线中的旧键换成新键，基线文件 `tests/fixtures/provider-baseline.json` 保持不动。
+- 全量pytest：1001项通过，0失败。
+- 真实验证（经用户同意，第2次真实请求，按用户同时提出的“统一采用流式输出”走流式路径）：通过应用自己的 `AsyncHelloAgentsLLM.astream_invoke` 发出，参数与应用一致（DeepSeek `deepseek-flash`、thinking disabled、JSON模式、temperature 0、SDK不重试），上限设16，提示与核实一相同的合成内容。
+
+| 项 | 结果 |
+| --- | --- |
+| 实际发出的参数 | `max_tokens=16`、`stream=True`，未发送 `max_completion_tokens` |
+| 应用判定 | `model_output_truncated`，对外原因码 `INVALID_OUTPUT` |
+| 截断前收到的正文 | 32字符 |
+| 耗时 | 1.78秒 |
+
+结论：上限在流式路径上已生效，且截断被应用正确识别并降级。非流式路径（同步 `/internal/rag/chat`）使用同一参数，只经单元测试的请求体断言验证，未单独发真实请求。流式请求未开启用量回传，故无供应商token计数。日常Agent未重启，服务器尚未更新。
+
+上限生效后的影响：此前四个输出上限形同虚设；现在超过上限的回答会被判为截断并降级为规则结果。既有上限为普通专家2200、意图解析2048、笔记4096、复习计划最多8192（按天数），本轮未调整取值，也未统计真实回答是否经常接近这些上限。
+
+### 校验后分段输出（用户新增要求）
+
+用户在本轮提出“内容输出统一采用流式输出”。该要求与11月2日可信度约定及第7项（校验前不转发待审正文）冲突，经说明后用户选择“校验后分段输出”，未选择“生成即流式”。契约见搭建文档“2026-11-14 校验后分段输出”。
+
+- 修改：新增 `kaoyan-agent/core/replay.py`（按换行与句末标点切分、最多24段、段间等待合计不超过1秒）；`kaoyan-agent/main.py` 的对话流在结果通过 `ChatResponse` 校验后、`result` 事件前推送分段，本轮已实时推送过正文的结果不再重复。
+- Python回归新增9项：切分可完整还原原文且不超过24段；规则回答、问候与澄清提示都会分段；被拒绝的模型原文（含“99999”）从未出现在任何事件中，分段与降级后的最终回答一致；错题辅导已实时推送时不再回放；生成失败只发送error、不发送分段。反向检查：把回放替换为空操作后，4项相关用例全部失败。
+- Java：`ConversationIntegrationTest` 原断言知识流“完全没有增量”，与新契约冲突。改为新增辅助方法 `streamedAnswer`：把订阅快照中的草稿与后续增量拼接，要求增量在completed之前、槽位为answer、offset连续，且拼接结果与最终保存的回答完全一致。该检查用于知识问答（模型回答被采纳）和非法引用（模型回答被降级）两种情况。首次运行时，沿用旧测试“收到增量后另发请求查询状态应为RUNNING”的检查失败（返回SUCCESS）：分段紧挨着结果发出，查询请求与最后一段存在竞态。已改为在同一条流内判断事件顺序。
+- 结果：Python全量pytest 1012项通过；`ConversationIntegrationTest` 22项通过；Java全量 `bash mvnw -B -ntp verify` 239项、0失败、2项跳过（与11月3日记录一致）。Java运行使用 `PYTHON_EXECUTABLE=.cache/mcp-pdf-venv/bin/python`。
+- 未运行：前端构建、浏览器中逐段显示的实际观感、真实模型下的分段；未统计分段带来的实际延迟。同步 `/internal/rag/chat` 不在本次范围内，仍一次性返回。日常服务未重启。
