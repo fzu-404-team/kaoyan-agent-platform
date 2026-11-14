@@ -80,7 +80,10 @@ async def test_frozen_provider_wire(case):
         expected = copy.deepcopy(case["request"])
         # The approved budget contract changes router output allowance and JSON
         # whitespace only; retain every other frozen transport assertion.
-        expected["max_completion_tokens"] = 2048 if case["router"] else 2200
+        # 2026-11-14: the same allowance is sent as max_tokens (the provider
+        # ignored max_completion_tokens); the frozen fixture keeps the old key.
+        expected.pop("max_completion_tokens")
+        expected["max_tokens"] = 2048 if case["router"] else 2200
         expected["messages"][1]["content"] = json.dumps(
             json.loads(expected["messages"][1]["content"]), ensure_ascii=False, separators=(",", ":")
         )

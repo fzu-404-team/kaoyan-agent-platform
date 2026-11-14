@@ -95,7 +95,8 @@ async def test_thinking_options_follow_explicit_configuration(
         sent = json.loads(requests[0].content)
         assert sent["model"] == model_name
         assert sent["response_format"] == {"type": "json_object"}
-        assert sent["max_completion_tokens"] == (2048 if router else 2200)
+        assert sent["max_tokens"] == (2048 if router else 2200)
+        assert "max_completion_tokens" not in sent
         assert [m["role"] for m in sent["messages"]] == ["system", "user"]
         if expected_thinking:
             assert sent["thinking"] == {"type": expected_thinking}
