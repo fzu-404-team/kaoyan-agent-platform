@@ -153,7 +153,7 @@ conditions仅允许examYear、majorCodes、degreeType、regions、regionConstrai
 
 offset按Unicode码点计数，version单调增加。每次订阅先发送完整快照；快照和后续订阅注册在同一进程锁内完成。客户端忽略旧版本，版本或位置不连续则重新获取快照。后端仅依赖已落库生成，不因订阅、刷新或重连再次调用模型。
 
-模型JSON通过真实SDK流输入，增量解析只展示允许的正文投影。完整结果经Schema、候选、引用编号及来源校验后，Java落库成功才发送completed。来源链接限定无凭证HTTPS及[共享来源清单](rag.md#引用来源策略)，Java聊天与同步任务执行同一来源校验，Python加载语料时逐条检查。前端引用链接校验HTTPS且不含凭证，Markdown链接还须精确属于响应中的允许URL，不另维护域名表。Markdown禁用原始HTML、清洗渲染，禁用远程图片。
+模型JSON通过真实SDK流输入，增量解析只展示允许的正文投影。2026-11-14起，本轮未推送过正文增量的结果在通过校验后、result事件前，把最终answer按answer槽位分段推送（最多24段，段间等待合计不超过1秒），分段只来自已校验结果，拼接后与最终answer一致；规则见[搭建文档](../考研Agent平台搭建文档.md#agent审查修复契约2026-11-13)。完整结果经Schema、候选、引用编号及来源校验后，Java落库成功才发送completed。来源链接限定无凭证HTTPS及[共享来源清单](rag.md#引用来源策略)，Java聊天与同步任务执行同一来源校验，Python加载语料时逐条检查。前端引用链接校验HTTPS且不含凭证，Markdown链接还须精确属于响应中的允许URL，不另维护域名表。Markdown禁用原始HTML、清洗渲染，禁用远程图片。
 
 聊天失败日志仅记录`task`、`chatFailure`异常类名和`errorCode`固定枚举：`SOURCE_HOST_NOT_ALLOWED`、`PLAN_VALIDATION_FAILED`、`RESULT_VALIDATION_FAILED`、`CONDITIONS_VALIDATION_FAILED`、`DOCUMENT_VALIDATION_FAILED`、`UPSTREAM_FAILED`、`UNEXPECTED_ERROR`。不输出异常消息、来源URL、请求正文或供应商原始详情；对外仍使用原有统一失败文案及SSE协议，不新增公开错误字段或数据库列。
 

@@ -17,6 +17,7 @@ from core.admission_client import AdmissionLinksTool, McpAdmissionClient
 from core.logs import configure_logging
 from core.mcp_client import McpKnowledgeClient, McpKnowledgeSearchTool
 from core.mcp_runtime import McpErrorCode, McpState, McpStatus
+from core.replay import replay_answer
 from core.runtime import CallBudget, admission_budget, execution_budget, retrieval_budget
 from core.tokens import FALLBACK_MODE, TokenCounter
 from llm_client import ModelClient, quota_exempt, request_model_calls, stream_sink
@@ -238,8 +239,16 @@ def create_app(settings=None, model=None, retriever=None, question_index=None):
             )
             queue = asyncio.Queue(maxsize=64)
 
+            # Slots that already received live model deltas this turn.
+            streamed: set[str] = set()
+
+            async def forward(event):
+                if event.get("type") == "delta":
+                    streamed.add(event["slot"])
+                await queue.put(event)
+
             async def run():
-                token = stream_sink.set(queue.put)
+                token = stream_sink.set(forward)
                 try:
                     await queue.put(
                         {"type": "stage", "stage": "正在理解问题与检索资料"}
@@ -252,6 +261,11 @@ def create_app(settings=None, model=None, retriever=None, question_index=None):
                         references=result["references"],
                         releaseId=corpus.release_id,
                     )
+                    # Validated answers reach the page progressively. Outputs that
+                    # already streamed live (tutor, note draft) are not repeated:
+                    # the page joins every slot and offsets must stay continuous.
+                    if not streamed:
+                        await replay_answer(queue.put, str(response.result.get("answer") or ""))
                     await queue.put(
                         {"type": "result", "response": response.model_dump()}
                     )

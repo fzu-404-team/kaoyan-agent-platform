@@ -348,3 +348,103 @@ def test_bm25_document_frequency_counts_chunks_not_occurrences(tmp_path):
     assert [chunk.id for chunk in corpus.bm25("死锁", "knowledge", 5)] == ["deadlock#0"]
     assert corpus.bm25("三次握手", "knowledge", 5) == []
 
+
+# ---- 2026-11-14: validated answers are delivered progressively on the stream ----
+
+
+def stream_events(response) -> list[dict]:
+    return [json.loads(line[6:]) for line in response.text.splitlines() if line.startswith("data: ")]
+
+
+def assert_replayed(events: list[dict]) -> str:
+    """Deltas precede the result, are consecutive and rebuild the saved answer exactly."""
+    kinds = [event["type"] for event in events]
+    assert kinds[-1] == "result" and "delta" not in kinds[kinds.index("result"):]
+    deltas = [event for event in events if event["type"] == "delta"]
+    assert deltas and all(event["slot"] == "answer" for event in deltas)
+    offset = 0
+    for event in deltas:
+        assert event["offset"] == offset and event["text"]
+        offset += len(event["text"])
+    answer = events[-1]["response"]["result"]["answer"]
+    assert "".join(event["text"] for event in deltas) == answer
+    return answer
+
+
+@pytest.mark.parametrize("text", [
+    "",
+    "单句没有标点",
+    "第一句。第二句！\n第三行\n\n",
+    "线程共享地址空间；保留各自的栈？" * 400,
+    "无标点长文本" * 3000,
+])
+def test_segments_rebuild_the_text_within_the_limit(text):
+    from core.replay import MAX_SEGMENTS, segments
+
+    parts = segments(text)
+    assert "".join(parts) == text
+    assert len(parts) <= MAX_SEGMENTS and all(parts)
+
+
+def stream(app, text: str, **changes) -> list[dict]:
+    body = {"taskId": "replay-1114", "userId": 1, "taskType": "CHAT", "userInput": text, **changes}
+    with TestClient(app) as client:
+        response = client.post("/internal/rag/conversation/stream", headers={"X-Internal-Key": KEY}, json=body)
+    assert response.status_code == 200
+    return stream_events(response)
+
+
+@pytest.mark.parametrize("text", ["进程和线程的区别", "你好", "请比较"])
+def test_rule_and_clarification_answers_are_replayed_after_validation(text):
+    events = stream(create_app(settings(), model=CountingModel()), text)
+    assert_replayed(events)
+
+
+def test_withheld_model_text_never_reaches_the_replay():
+    """A knowledge answer that fails its checks falls back; only the fallback is streamed."""
+    model = LeakyModel(None)
+
+    async def unsupported(instruction, payload, schema, router=False):
+        if router:
+            raise ModelUnavailable("not_scripted")
+        await stream_sink.get()({"type": "delta", "slot": "answer", "offset": 0, "text": "untrusted99999"})
+        return Answer(answer="TCP默认端口为99999。", sourceIds=[payload["references"][0]["id"]])
+
+    model.generate = unsupported
+    config = settings(LLM_ENABLED=True, LLM_API_KEY="test-only")
+    events = stream(create_app(config, model=model), "TCP可靠传输",
+                    privacy=consent(config))
+    answer = assert_replayed(events)
+    assert "99999" not in answer and all("99999" not in json.dumps(event, ensure_ascii=False) for event in events[:-1])
+    assert events[-1]["response"]["result"]["explanationMode"] == "fallback"
+
+
+def test_live_streamed_output_is_not_repeated():
+    from tests.test_tutor import tutor
+
+    class LiveTutor(CountingModel):
+        async def generate(self, instruction, payload, schema, router=False):
+            if router:
+                raise ModelUnavailable("not_scripted")
+            await stream_sink.get()({"type": "delta", "slot": "answer", "offset": 0, "text": "按已保存版本"})
+            return schema(explanation="按已保存版本核对你的选择。", standardAnswer="B")
+
+    config = settings(LLM_ENABLED=True, LLM_API_KEY="test-only")
+    body = tutor(privacy={"modelAllowed": True, "scopes": ["wrong"], "provider": PROVIDER})
+    body.pop("taskId")
+    body["taskType"] = "CHAT"
+    events = stream(create_app(config, model=LiveTutor()), body.pop("userInput"), **body)
+    deltas = [event for event in events if event["type"] == "delta"]
+    assert [event["text"] for event in deltas] == ["按已保存版本"]
+    assert events[-1]["type"] == "result"
+
+
+def test_failed_generation_streams_no_segments(monkeypatch):
+    from agents.note import NoteAgent
+
+    async def bug(*args, **kwargs):
+        raise TypeError("private-bug-body")
+
+    monkeypatch.setattr(NoteAgent, "handle", bug)
+    events = stream(create_app(settings(), model=CountingModel()), "创建一份笔记")
+    assert [event["type"] for event in events if event["type"] != "stage"] == ["error"]

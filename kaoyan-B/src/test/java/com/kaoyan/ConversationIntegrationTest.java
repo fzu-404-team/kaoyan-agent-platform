@@ -179,26 +179,49 @@ class ConversationIntegrationTest {
         call(other,"GET","/tasks/"+task,null,404);
     }
 
-    @Test void knowledgeStreamWithholdsUnvalidatedProseAndReconnectDoesNotGenerateAgain() throws Exception {
-        String token=account(), id=conversation(token);
-        String task=send(token,id,"进程与线程","stream").path("taskId").asText();
+    /**
+     * Rebuild what the page received: the first snapshot's draft plus every delta.
+     * Since 2026-11-14 validated answers are delivered in segments, so deltas are
+     * expected; they must precede completed and have continuous offsets.
+     */
+    String streamedAnswer(String token,String id,String task) throws Exception {
         var response=HTTP.send(request(token,"/conversations/"+id+"/generations/"+task+"/stream").GET().build(),HttpResponse.BodyHandlers.ofInputStream());
         assertEquals(200,response.statusCode());
-        boolean delta=false, completed=false;
+        var text=new StringBuilder();
+        boolean snapshot=false, delta=false, completed=false;
+        String event="";
         try(var reader=new BufferedReader(new InputStreamReader(response.body()))) {
             String line;
             while((line=reader.readLine())!=null) {
-                if(line.equals("event:delta")) {
-                    if(!delta) assertEquals("RUNNING",latest(token,id).path("status").asText());
+                if(line.startsWith("event:")) { event=line.substring(6).trim(); if(event.equals("completed")) completed=true; continue; }
+                if(!line.startsWith("data:")) continue;
+                var data=json.readTree(line.substring(5));
+                if(event.equals("snapshot") && !snapshot) {
+                    snapshot=true;
+                    assertEquals("RUNNING",data.path("status").asText(),"订阅须早于生成结束，否则无法检查分段");
+                    text.append(data.path("draft").path("answer").asText(""));
+                } else if(event.equals("delta")) {
+                    // Order on this one stream, not a second request racing the last segment.
+                    assertFalse(completed,"增量须早于completed");
                     delta=true;
+                    assertEquals("answer",data.path("slot").asText());
+                    assertEquals(text.codePointCount(0,text.length()),data.path("offset").asInt());
+                    text.append(data.path("text").asText());
                 }
-                if(line.equals("event:completed")) completed=true;
             }
         }
-        assertFalse(delta,"知识正文校验前不得转发SDK增量"); assertTrue(completed);
+        assertTrue(snapshot); assertTrue(delta,"校验后的回答应分段送达"); assertTrue(completed);
+        return text.toString();
+    }
+
+    @Test void knowledgeStreamWithholdsUnvalidatedProseAndReconnectDoesNotGenerateAgain() throws Exception {
+        String token=account(), id=conversation(token);
+        String task=send(token,id,"进程与线程","stream").path("taskId").asText();
+        String streamed=streamedAnswer(token,id,task);
         var saved=finish(token,id);
         assertEquals("SUCCESS",saved.path("status").asText());
         assertEquals("线程共享地址空间，保留各自的栈。",saved.path("result").path("answer").asText());
+        assertEquals(saved.path("result").path("answer").asText(),streamed,"分段只来自校验后的最终回答");
         var reconnect=HTTP.send(request(token,"/conversations/"+id+"/generations/"+task+"/stream").GET().build(),HttpResponse.BodyHandlers.ofString());
         assertTrue(reconnect.body().contains("snapshot")); assertTrue(reconnect.body().contains("SUCCESS"));
         assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM chat_generation WHERE conversation_id=?",Integer.class,id));
@@ -332,9 +355,12 @@ class ConversationIntegrationTest {
 
     @Test void invalidCitationFallsBackAndRestartRecoveryClearsDraftAndActiveLock() throws Exception {
         String token=account(), id=conversation(token);
-        send(token,id,"进程与线程，非法引用","bad-source");
+        String fallbackTask=send(token,id,"进程与线程，非法引用","bad-source").path("taskId").asText();
+        // The rejected model prose was withheld; the page only received the fallback text.
+        String streamed=streamedAnswer(token,id,fallbackTask);
         var result=finish(token,id);
         assertEquals("fallback",result.path("result").path("explanationMode").asText());
+        assertEquals(result.path("result").path("answer").asText(),streamed);
         assertTrue(result.path("draft").isEmpty());
         // Simulate persisted interrupted work without touching a live provider call.
         String task=UUID.randomUUID().toString();
