@@ -19,6 +19,7 @@ export const searchSchools = (params: {
   province?: string
   level?: string
   majorName?: string
+  keyword?: string
 }) => request.get<unknown, School[]>('/schools', { params })
 
 export const getSchoolDetail = (schoolId: number, signal?: AbortSignal) =>

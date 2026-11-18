@@ -34,7 +34,7 @@ public class SchoolController {
     /**
      * 搜索院校（GET，普通 query 参数）
      */
-    @Operation(summary = "搜索院校", description = "可按省份、层次、专业名筛选；不传则查全部")
+    @Operation(summary = "搜索院校", description = "可按省份、层次、专业名、校名关键词筛选；不传则查全部。结果按 985、211、双一流、普通本科排序，未知层次置后")
     @GetMapping
     public Result<List<School>> search(
             @Parameter(description = "省份", example = "北京")
@@ -42,17 +42,19 @@ public class SchoolController {
             @Parameter(description = "层次：985/211/双一流", example = "985")
             @RequestParam(required = false) String level,
             @Parameter(description = "专业名（模糊）", example = "计算机")
-            @RequestParam(required = false) String majorName) {
-        return Result.ok(schoolService.search(province, level, majorName));
+            @RequestParam(required = false) String majorName,
+            @Parameter(description = "校名关键词（模糊）", example = "航空航天")
+            @RequestParam(required = false) String keyword) {
+        return Result.ok(schoolService.search(province, level, majorName, keyword));
     }
 
     /**
      * 搜索院校（POST + JSON body，方便传复杂条件）
      */
-    @Operation(summary = "搜索院校（POST/JSON）", description = "body 传 JSON，可按省份、层次、专业名筛选")
+    @Operation(summary = "搜索院校（POST/JSON）", description = "body 传 JSON，可按省份、层次、专业名、校名关键词筛选")
     @PostMapping("/search")
     public Result<List<School>> searchByBody(@RequestBody SchoolQuery query) {
-        return Result.ok(schoolService.search(query.province(), query.level(), query.majorName()));
+        return Result.ok(schoolService.search(query.province(), query.level(), query.majorName(), query.keyword()));
     }
 
     /**

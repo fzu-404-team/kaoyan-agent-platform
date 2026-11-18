@@ -3,6 +3,7 @@
     <div class="hero">
       <h1>院校与专业</h1><p>按明确条件比较候选，逐条核对官方依据</p>
       <div class="search-bar">
+        <el-input v-model="q.keyword" placeholder="校名，如：航空航天" aria-label="校名" clearable @keyup.enter="load" @clear="load" />
         <el-select v-model="q.province" placeholder="省份" aria-label="省份" filterable clearable :loading="optionsLoading" no-data-text="暂无选项">
           <el-option v-for="province in options.provinces" :key="province" :label="province" :value="province" />
         </el-select>
@@ -18,13 +19,13 @@
       </div>
     </div>
     <el-alert title="院校库包含已核对资料与“采集待核实”记录，请查看专业备注中的状态、年份和来源。待核实内容不能直接作为报考依据；条件推荐仅使用独立核验资料。" type="warning" :closable="false" />
-    <LearningRecommendationPanel />
     <div class="rows" v-loading="loading">
       <router-link v-for="school in list" :key="school.id" :to="`/schools/${school.id}`" class="school-row">
         <strong>{{ school.name }}</strong><span>{{ school.province }} · {{ school.level || '层次未登记' }}</span>
       </router-link>
       <el-empty v-if="!loading && !list.length" description="没有匹配的院校" />
     </div>
+    <LearningRecommendationPanel />
     <section class="card history">
       <h2>我的推荐历史（最近100条） <el-button size="small" @click="loadHistory">刷新</el-button></h2>
       <el-empty v-if="!history.length" description="还没有推荐记录" :image-size="60" />
@@ -65,7 +66,7 @@ import { useUserStore } from '@/stores/user'
 import TaskResultView from '@/components/TaskResultView.vue'
 import type { School, Task, User } from '@/types/api'
 const user = useUserStore()
-const q = reactive({ province: '', level: '', majorName: '' })
+const q = reactive({ keyword: '', province: '', level: '', majorName: '' })
 const options = ref<SchoolOptions>({ provinces: [], majorNames: [] })
 const optionsLoading = ref(false), optionsError = ref(false)
 const list = ref<School[]>([]), history = ref<Task[]>([])

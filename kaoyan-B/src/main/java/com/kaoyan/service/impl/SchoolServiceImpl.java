@@ -32,15 +32,16 @@ public class SchoolServiceImpl extends ServiceImpl<SchoolMapper, School> impleme
     }
 
     @Override
-    public List<School> search(String province, String level, String majorName) {
+    public List<School> search(String province, String level, String majorName, String keyword) {
         return baseMapper.search(
                 blankToNull(province),
                 blankToNull(level),
-                blankToNull(majorName));
+                blankToNull(majorName),
+                blankToNull(keyword));
     }
 
     private static String blankToNull(String s) {
-        return (s == null || s.isBlank()) ? null : s;
+        return (s == null || s.isBlank()) ? null : s.strip();
     }
 
     @Override

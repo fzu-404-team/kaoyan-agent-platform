@@ -14,6 +14,9 @@ public record SchoolQuery(
         String level,
 
         @Schema(description = "专业名（联表模糊搜索）", example = "计算机")
-        String majorName
+        String majorName,
+
+        @Schema(description = "校名关键词（模糊搜索）", example = "航空航天")
+        String keyword
 ) {
 }

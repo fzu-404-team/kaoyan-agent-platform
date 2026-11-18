@@ -41,7 +41,7 @@ test('select, filter options, combine conditions and clear without shrinking opt
   expect(queries).toHaveLength(1)
   await page.getByRole('button', { name: '搜索院校库', exact: true }).click()
   await expect(page.locator('.school-row')).toHaveCount(1)
-  expect(Object.fromEntries(queries.at(-1)!)).toEqual({ province: '江苏', level: '211', majorName: '软件工程' })
+  expect(Object.fromEntries(queries.at(-1)!)).toEqual({ keyword: '', province: '江苏', level: '211', majorName: '软件工程' })
   await province.click()
   await expect(page.getByRole('option', { name: '北京', exact: true })).toBeVisible()
   await province.press('Escape')
@@ -52,7 +52,7 @@ test('select, filter options, combine conditions and clear without shrinking opt
   }
   await page.getByRole('button', { name: '搜索院校库', exact: true }).click()
   await expect(page.locator('.school-row')).toHaveCount(2)
-  for (const key of ['province', 'level', 'majorName']) expect(queries.at(-1)!.get(key) || '').toBe('')
+  for (const key of ['keyword', 'province', 'level', 'majorName']) expect(queries.at(-1)!.get(key) || '').toBe('')
   await major.fill('不存在的专业')
   await expect(page.getByText('无匹配数据', { exact: true })).toBeVisible()
   await expect(page.getByRole('option', { name: '不存在的专业', exact: true })).toHaveCount(0)
@@ -112,4 +112,55 @@ test('options show loading until the request completes', async ({ page }) => {
     await expect(page.locator('.el-select-dropdown:visible').getByText('加载中', { exact: true })).toBeVisible()
   } finally { release() }
   await expect(page.getByRole('option', { name: '北京', exact: true })).toBeVisible()
+})
+
+test('school name keyword combines with filters and keeps the list above recommendation settings', async ({ page }) => {
+  const catalog = [
+    { id: 31, name: '北京航空航天大学', province: '北京', level: '985' },
+    { id: 32, name: '北京理工大学', province: '北京', level: '985' },
+    { id: 33, name: '南京航空航天大学', province: '江苏', level: '211' }
+  ]
+  const queries: URLSearchParams[] = []
+  await page.route('http://127.0.0.1:4173/api/**', async route => {
+    const url = new URL(route.request().url())
+    let data: unknown = []
+    if (url.pathname === '/api/schools/options') data = options
+    else if (url.pathname === '/api/learning/status') data = { enabled: true }
+    else if (url.pathname === '/api/learning/recommendation-settings') {
+      data = { revision: 0, enabled: false, preferences: {}, status: 'DISABLED' }
+    } else if (url.pathname === '/api/schools') {
+      queries.push(url.searchParams)
+      const keyword = url.searchParams.get('keyword') || ''
+      const province = url.searchParams.get('province') || ''
+      data = catalog.filter(school =>
+        (!keyword || school.name.includes(keyword)) && (!province || school.province === province))
+    }
+    await route.fulfill({ json: { code: 0, message: 'ok', data } })
+  })
+  await page.goto('/schools')
+  await expect(page.locator('.school-row')).toHaveCount(3)
+
+  const keyword = page.getByRole('textbox', { name: '校名', exact: true })
+  await keyword.fill('航空航天')
+  await keyword.press('Enter')
+  await expect(page.locator('.school-row')).toHaveCount(2)
+  expect(queries.at(-1)!.get('keyword')).toBe('航空航天')
+
+  const province = page.getByRole('combobox', { name: '省份', exact: true })
+  await province.click()
+  await page.getByRole('option', { name: '北京', exact: true }).click()
+  await page.getByRole('button', { name: '搜索院校库', exact: true }).click()
+  await expect(page.locator('.school-row')).toHaveCount(1)
+  await expect(page.locator('.school-row strong')).toHaveText('北京航空航天大学')
+  expect(Object.fromEntries(queries.at(-1)!)).toMatchObject({ keyword: '航空航天', province: '北京' })
+
+  await keyword.fill('')
+  await keyword.press('Enter')
+  await expect(page.locator('.school-row')).toHaveCount(2)
+  expect(queries.at(-1)!.get('keyword') || '').toBe('')
+
+  await expect(page.getByText('随学情更新院校推荐', { exact: true })).toBeVisible()
+  const rowsBox = await page.locator('.rows').boundingBox()
+  const panelBox = await page.getByText('随学情更新院校推荐', { exact: true }).boundingBox()
+  expect(rowsBox!.y).toBeLessThan(panelBox!.y)
 })

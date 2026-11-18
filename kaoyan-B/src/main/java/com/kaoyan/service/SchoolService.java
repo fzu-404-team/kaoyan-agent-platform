@@ -21,9 +21,10 @@ public interface SchoolService extends IService<School> {
      * @param province 省份（可空）
      * @param level    层次（可空）
      * @param majorName 专业名（可空，联表搜索）
+     * @param keyword  校名关键词（可空，模糊搜索）
      * @return 院校列表
      */
-    List<School> search(String province, String level, String majorName);
+    List<School> search(String province, String level, String majorName, String keyword);
 
     /**
      * 院校详情（含专业列表）

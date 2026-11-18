@@ -103,4 +103,42 @@ class SchoolOptionsIntegrationTest {
             .andExpect(status().isOk()).andExpect(jsonPath("$.data.school.name").value("测试乙校"))
             .andExpect(jsonPath("$.data.details[0].majorName").value("软件工程"));
     }
+
+    @Test void keywordSearchCombinesFiltersAndSortsByLevel() throws Exception {
+        seed();
+        String token = login();
+        mvc.perform(get("/api/schools").header("Authorization", "Bearer " + token)
+            .param("keyword", "甲"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data", hasSize(1)))
+            .andExpect(jsonPath("$.data[0].name").value("测试甲校"));
+        // The issue's acceptance example: a partial school name.
+        jdbc.update("INSERT INTO school(id,name,province,level) VALUES(15,'北京航空航天大学','北京','985')");
+        sqlSession.clearCache();
+        mvc.perform(get("/api/schools").header("Authorization", "Bearer " + token)
+            .param("keyword", "航空航天"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data", hasSize(1)))
+            .andExpect(jsonPath("$.data[0].name").value("北京航空航天大学"));
+        mvc.perform(get("/api/schools").header("Authorization", "Bearer " + token)
+            .param("keyword", "航空航天").param("province", "北京").param("level", "985"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data", hasSize(1)))
+            .andExpect(jsonPath("$.data[0].name").value("北京航空航天大学"));
+        mvc.perform(post("/api/schools/search").header("Authorization", "Bearer " + token)
+            .contentType("application/json").content("{\"keyword\":\"乙\",\"province\":\"江苏\"}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data", hasSize(1)))
+            .andExpect(jsonPath("$.data[0].name").value("测试乙校"));
+        // A keyword from one school and a province from another must not match.
+        mvc.perform(get("/api/schools").header("Authorization", "Bearer " + token)
+            .param("keyword", "甲").param("province", "江苏"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.data", hasSize(0)));
+
+        jdbc.update("INSERT INTO school(id,name,province,level) VALUES " +
+            "(10,'普通本科校','河北','普通本科'),(11,'双一流校','河北','双一流')," +
+            "(12,'九八五校','河北','985'),(13,'二一一校','河北','211'),(14,'未知层次校','河北',NULL)");
+        // JDBC fixtures bypass MyBatis invalidation inside this rollback-only test transaction.
+        sqlSession.clearCache();
+        mvc.perform(get("/api/schools").header("Authorization", "Bearer " + token).param("province", "河北"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[*].name",
+                contains("九八五校", "二一一校", "双一流校", "普通本科校", "未知层次校")));
+    }
 }

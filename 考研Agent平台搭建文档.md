@@ -626,7 +626,7 @@ Issue #9（本地适配契约，2026-10-21）：学生抽题及详情改用白�
 | GET `/api/users/me`、PUT `/api/users/profile`、PUT `/api/users/avatar` | 本人展示资料、允许档案、头像 | 归属从认证取，不能设置role |
 | GET／POST `/api/tasks`、GET `/api/tasks/{taskId}` | 分页历史、类型化输入、本人任务 | 同步调用并保存状态；历史及total排除已删除项，跨账号或已删除详情404 |
 | GET `/api/documents` | subject，可返回已发布资料列表 | 尚非Agent知识检索接口 |
-| GET `/api/schools`、POST `/api/schools/search`、GET `/api/schools/{schoolId}` | province／level／majorName，院校及专业详情 | 列表不是核验推荐，未提供完整当年专业条件筛选 |
+| GET `/api/schools`、POST `/api/schools/search`、GET `/api/schools/{schoolId}` | province／level／majorName／keyword，院校及专业详情 | keyword 按校名模糊匹配，可与其余条件叠加；结果按 985、211、双一流、普通本科排序，未知层次置后；列表不是核验推荐，未提供完整当年专业条件筛选 |
 | GET `/api/schools/options` | `{provinces: string[], majorNames: string[]}`，沿用认证及统一响应包装 | 从院校库读取全部非空、去重、排序的省份和专业名；专业关联现存院校，不随筛选结果缩减；空库返回空数组，不代表招生资料已核验 |
 | POST `/api/recommends/generate`、GET `/api/recommends`、DELETE `/api/recommends/{taskId}` | `{query,preferences}`、本人近期Task历史／字符串taskId删除 | 与任务同一流程；仅隐藏本人SUCCESS／FAILED推荐并保留额度，重复删除404，未结束409 |
 | GET `/api/questions/practice`、GET `/api/questions/{id}` | subject／difficulty／knowledgePoint／limit，StudentQuestionVO | 抽题及详情仅审核启用题，不返回答案、解析或审核字段 |

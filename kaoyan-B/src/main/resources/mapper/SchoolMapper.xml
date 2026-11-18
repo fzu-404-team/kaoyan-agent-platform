@@ -16,23 +16,35 @@
         ORDER BY d.major_name
     </select>
 
-    <!-- 多条件搜索院校：province / level / majorName 任意组合，都不传才查全部 -->
+    <!-- 多条件搜索院校：province / level / majorName / keyword 任意组合，都不传才查全部。
+         排序固定为 985、211、双一流、普通本科，未知层次置后；同级保持录入顺序。 -->
     <select id="search" resultType="com.kaoyan.entity.School">
-        SELECT DISTINCT s.*
-        FROM school s
-        LEFT JOIN school_detail d ON d.school_id = s.id
-        <where>
-            <if test="province != null and province != ''">
-                AND s.province = #{province}
-            </if>
-            <if test="level != null and level != ''">
-                AND s.level = #{level}
-            </if>
-            <if test="majorName != null and majorName != ''">
-                AND d.major_name LIKE CONCAT('%', #{majorName}, '%')
-            </if>
-        </where>
-        ORDER BY s.id
+        SELECT t.* FROM (
+            SELECT DISTINCT s.*
+            FROM school s
+            LEFT JOIN school_detail d ON d.school_id = s.id
+            <where>
+                <if test="province != null and province != ''">
+                    AND s.province = #{province}
+                </if>
+                <if test="level != null and level != ''">
+                    AND s.level = #{level}
+                </if>
+                <if test="majorName != null and majorName != ''">
+                    AND d.major_name LIKE CONCAT('%', #{majorName}, '%')
+                </if>
+                <if test="keyword != null and keyword != ''">
+                    AND s.name LIKE CONCAT('%', #{keyword}, '%')
+                </if>
+            </where>
+        ) t
+        ORDER BY CASE t.level
+            WHEN '985' THEN 0
+            WHEN '211' THEN 1
+            WHEN '双一流' THEN 2
+            WHEN '普通本科' THEN 3
+            ELSE 4 END,
+            t.id
     </select>
 
 </mapper>
