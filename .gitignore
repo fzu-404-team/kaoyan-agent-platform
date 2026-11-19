@@ -51,8 +51,14 @@ temp/
 .cache/
 *.tsbuildinfo
 .pytest_cache/
+.ruff_cache/
 playwright-report/
 test-results/
+
+# 本机学习进度（task-tutor 等辅助 Skill 生成），不进仓库
+/.learning/
+# 本机启动配置
+/.claude/launch.json
 
 # 本机参考图与未取得公开转载许可的采集正文、截图和原值清单
 /360.JPG

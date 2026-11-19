@@ -46,7 +46,7 @@ jobs:
           python scripts/check-project.py
           python scripts/check-framework.py
           python scripts/feature-test.py
-          python -m unittest discover -s scripts/tests -v
+          python -m pytest -q scripts/tests
       - name: Build Java and test the real Java to Python chain
         working-directory: kaoyan-B
         run: bash mvnw -B -ntp verify dependency:build-classpath -Dmdep.includeScope=test -Dmdep.outputFile=target/test-classpath.txt
