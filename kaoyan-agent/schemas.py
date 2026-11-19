@@ -214,6 +214,12 @@ class Answer(StrictModel):
     claims: list[Claim] = Field(default_factory=list, max_length=10)
 
 
+class GeneralKnowledgeAnswer(StrictModel):
+    """Uncited explanation of a general 408 concept."""
+
+    answer: str = Field(min_length=1, max_length=3000)
+
+
 class Explanation(StrictModel):
     programId: str
     text: str = Field(min_length=1, max_length=2000)

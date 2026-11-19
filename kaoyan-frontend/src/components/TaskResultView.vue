@@ -190,7 +190,7 @@ const citationLabels: Record<string, string> = {
 }
 const reasonLabels: Record<string, string> = {
   low_overlap: '与原文重合不足', no_overlap: '原文无对应内容', number_mismatch: '数字与原文不一致',
-  unknown_source: '引用编号无效', empty_claim: '空结论', missing_excerpt: '原文缺失',
+  unknown_source: '引用编号无效', empty_claim: '空结论', missing_excerpt: '原文缺失', polarity_mismatch: '结论与原文的肯定或否定相反',
 }
 function citationType(status?: string): 'success' | 'warning' | 'danger' | 'info' {
   return status === 'SUPPORTED' ? 'success' : status === 'PARTIAL' ? 'warning' : status === 'UNSUPPORTED' ? 'danger' : 'info'

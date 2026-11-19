@@ -58,9 +58,9 @@ class Workflows:
             ):
                 raise ValueError("招生目录缺少招考范围")
 
-    async def qa(self, req: ChatRequest) -> dict:
+    async def qa(self, req: ChatRequest, *, general_question: str | None = None) -> dict:
         """Execute one knowledge expert."""
-        return await KnowledgeAgent(self).execute(req)
+        return await KnowledgeAgent(self, general_question).execute(req)
 
     async def tutor(self, req: ChatRequest) -> dict:
         """Use the same native knowledge expert as the main conversation."""
@@ -74,7 +74,7 @@ class Workflows:
         """Execute one summary specialization of the knowledge tutor."""
         return await SummaryAgent(self).execute(req)
 
-    async def run(self, req: ChatRequest) -> dict:
+    async def run(self, req: ChatRequest, *, general_question: str | None = None) -> dict:
         """Dispatch one legacy task without changing its result envelope."""
         task_type = req.taskType
         if task_type == "CHAT":
@@ -85,7 +85,7 @@ class Workflows:
                 req, issues = await PlanResolver(self).independent_school(req)
             result = school_needs_input(issues) if issues else await self.schools(req)
         elif task_type == "KNOWLEDGE_QA":
-            result = await self.qa(req)
+            result = await self.qa(req, general_question=general_question)
         elif task_type == "WRONG_QUESTION_TUTOR":
             result = await self.tutor(req)
         elif task_type == "PRACTICE_SUMMARY":

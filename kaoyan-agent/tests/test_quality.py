@@ -1,4 +1,5 @@
 """Quality-focused tests: BM25/hybrid retrieval, subject hints, citation support."""
+import json
 from pathlib import Path
 
 import pytest
@@ -59,6 +60,30 @@ def test_bm25_ranks_the_matching_subject_and_can_filter():
     # Single common characters must not turn an uncovered topic into a hit.
     assert corpus.bm25("三次握手", "knowledge", 5) == []
     assert corpus.bm25("栈", "knowledge", 5)[0].id.startswith("ds-deque")
+
+
+def test_school_scores_do_not_change_knowledge_bm25_ranking(tmp_path: Path) -> None:
+    source = json.loads(BASE_CORPUS.read_text(encoding="utf-8"))[0]
+    knowledge = [
+        dict(source, id="a-retest", title="样例", content="复试", keywords=[]),
+        dict(source, id="b-thread", title="样例", content="线程", keywords=[]),
+    ]
+    scores = [
+        dict(source, id=f"score-{i}", domain="school", title="复试统计", content="复试分数统计",
+             keywords=[], reviewStatus="verified", originalReviewStatus="user_approved", url="",
+             metadata={"kind": "score_statistics"})
+        for i in range(5)
+    ]
+    path = tmp_path / "corpus.json"
+    path.write_text(json.dumps(knowledge), encoding="utf-8")
+    baseline = Corpus(path)
+    path.write_text(json.dumps(knowledge + scores), encoding="utf-8")
+    extended = Corpus(path)
+
+    query = "复试 线程"
+    assert [doc.id for doc in baseline.bm25(query, "knowledge")] == ["a-retest#0", "b-thread#0"]
+    assert [doc.id for doc in extended.bm25(query, "knowledge")] == ["a-retest#0", "b-thread#0"]
+    assert len(extended.bm25("复试", "school")) == 5
 
 
 @pytest.mark.parametrize("text,expected", [
@@ -166,12 +191,12 @@ def test_qa_verifies_each_claim_against_its_own_source():
         result = post(client, qa_request("TCP如何保证可靠传输"))
     support = result["citationSupport"]
     assert result["explanationMode"] == "fallback"
+    assert result["answer"] == "TCP通过序号、确认和重传恢复丢失。"
     assert "三次握手" not in result["answer"]
     assert support["checked"] == 2 and support["supported"] == 1
     assert support["status"] == "PARTIAL"
     assert support["items"][0]["supported"] is True
-    assert support["items"][1]["supported"] is False
-    assert support["items"][1]["reason"] == "low_overlap"
+    assert len(support["items"]) == 1 and not support["unsupported"]
 
 
 def test_qa_rejects_a_claim_citing_an_unknown_source():

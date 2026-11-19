@@ -136,7 +136,7 @@ public class ExportSources {
             if (data.path("partial").asBoolean()) out.append("部分事项完成，其余事项以原回答提示为准。\n\n");
             for (JsonNode section : data.path("sections")) out.append("- ").append(cell(section.path("agent"))).append("：")
                     .append(cell(section.path("outcome"))).append(" · ").append(cell(section.path("notice"))).append("\n");
-            if (data.path("explanationMode").asText().equals("fallback")) out.append("\nAI 已降级，本文件保留原有规则结果及提示。\n\n");
+            if (data.path("explanationMode").asText().equals("fallback")) out.append("\n本次回答已降级，回答范围见正文与提示。\n\n");
         }
         JsonNode support = data.path("citationSupport");
         if (support.isObject()) {

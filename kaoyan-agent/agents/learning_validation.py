@@ -7,7 +7,7 @@ from typing import cast
 
 from core.context import JsonValue, PreparedModelInput
 from core.errors import InvalidModelOutput
-from grounding import aggregate, fully_supported, numbers_supported, verify
+from grounding import aggregate, fully_supported, numbers_supported, published_support, verify
 from learning import LearningAnswer, LearningSuggestion
 from learning_suggestions import (
     SuggestionCandidate,
@@ -149,7 +149,8 @@ def validate_enrichment(answer: LearningAnswer, prepared: PreparedModelInput) ->
             raise InvalidModelOutput("learning_personal_fact_number_mismatch")
         report = verify(explanation.text, explanation.sourceIds, sources, strict=True)
         if not fully_supported(report):
-            raise InvalidModelOutput("unsupported_learning_citation")
+            reports.append({**report, "items": [], "supported": 0})
+            continue
         reports.append(report)
         source_ids.update(explanation.sourceIds)
         lines.append("概念解释：" + explanation.text)
@@ -158,5 +159,7 @@ def validate_enrichment(answer: LearningAnswer, prepared: PreparedModelInput) ->
         lines.append(candidate.text)
         source_ids.update(candidate.source_ids)
         evidence_refs.update(candidate.evidence_refs)
+    if not lines:
+        raise InvalidModelOutput("unsupported_learning_citation")
     return LearningEnrichment(tuple(dict.fromkeys(lines)), frozenset(source_ids), frozenset(evidence_refs),
-                              cast(dict[str, JsonValue], aggregate(reports)))
+                              cast(dict[str, JsonValue], published_support(aggregate(reports))))

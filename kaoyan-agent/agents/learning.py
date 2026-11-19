@@ -150,6 +150,12 @@ class LearningAgent(StructuredAgent):
                         if doc.id in enrichment.source_ids
                     ],
                 )
+                if enrichment.citation_support["status"] in {"PARTIAL", "UNSUPPORTED"}:
+                    result.update(
+                        explanationMode="fallback",
+                        fallbackReason="EVIDENCE_MISMATCH",
+                        notice="已保留规则学情及通过核对的补充内容。",
+                    )
             except MODEL_FAILURES as error:
                 log.warning("learningModelFailure=%s reason=%s", type(error).__name__, failure_reason(error))
                 result.update(

@@ -23,6 +23,7 @@ _SKIP = re.compile(r"^(以下|参考|注[:：]|来源[:：]|依据[:：])"
 _SENTENCE = re.compile(r"[^。！？!?；;\n]+[。！？!?；;]?")
 _NUMBER = re.compile(r"\d+(?:\.\d+)?")
 _SCOPE_NOTE = re.compile(r"资料未(?:进一步)?(?:说明|覆盖)(?:该细节|该问题)[。.]?")
+_NEGATION = re.compile(r"没有|不|未|无|非")
 
 
 def tokens(text: str) -> set[str]:
@@ -100,6 +101,25 @@ def _excerpts(docs: Iterable) -> tuple[str, set[str]]:
     return joined, tokens(joined)
 
 
+def _polarity_conflict(claim: str, excerpt: str) -> bool:
+    """Detect otherwise identical clauses that differ by a single negation."""
+    def key(text: str) -> str:
+        return re.sub(r"[\W_]+", "", unicodedata.normalize("NFKC", text).casefold())
+
+    expected = key(claim)
+    if len(expected) < 5:
+        return False
+    for sentence in re.split(r"[。！？!?；;\n]", excerpt):
+        source = key(sentence)
+        if abs(len(expected) - len(source)) not in {1, 2}:
+            continue
+        longer, shorter = (source, expected) if len(source) > len(expected) else (expected, source)
+        if any(longer[:match.start()] + longer[match.end():] == shorter
+               for match in _NEGATION.finditer(longer)):
+            return True
+    return False
+
+
 def score_claim(claim: str, docs: Iterable) -> tuple[float, str | None]:
     """Return (overlap ratio, failure reason). Numbers must appear in the excerpts."""
     claim_tokens = tokens(claim)
@@ -112,6 +132,8 @@ def score_claim(claim: str, docs: Iterable) -> tuple[float, str | None]:
     ratio = len(overlap) / len(claim_tokens)
     if not set(_numbers(claim)) <= set(_numbers(excerpt_text)):
         return min(ratio, 0.2), "number_mismatch"
+    if _polarity_conflict(claim, excerpt_text):
+        return ratio, "polarity_mismatch"
     if not overlap:
         return 0.0, "no_overlap"
     if ratio < MIN_RATIO:
@@ -132,6 +154,27 @@ def _coverage_text(text: str, source_ids: list[str]) -> str:
 def fully_supported(report: Mapping[str, object]) -> bool:
     """Require every checked unit, rather than the legacy aggregate ratio threshold."""
     return bool(report.get("checked")) and report.get("checked") == report.get("supported")
+
+
+def claims_cover_answer(answer: str, claims: list[dict], source_ids: list[str]) -> bool:
+    """Require complete ordered coverage after removing presentation markers."""
+    normalized_answer = _coverage_text("".join(units(answer, strict=True)), source_ids)
+    normalized_claims = _coverage_text("".join(str(claim.get("text", "")) for claim in claims), source_ids)
+    return normalized_answer == normalized_claims
+
+
+def published_support(report: dict) -> dict:
+    """Report actual counts without publishing the rejected claims or their citations."""
+    return {
+        **report,
+        "status": (
+            "NOT_CHECKED" if not report["checked"] else
+            "SUPPORTED" if fully_supported(report) else
+            "PARTIAL" if report["supported"] else "UNSUPPORTED"
+        ),
+        "unsupported": [],
+        "items": [item for item in report["items"] if item["supported"]],
+    }
 
 
 def verify(
@@ -188,9 +231,7 @@ def verify(
     if claims:
         for claim in claims:
             check(str(claim.get("text", "")), list(claim.get("sourceIds", [])))
-        normalized_answer = _coverage_text("".join(units(answer, strict=True)), list(by_id))
-        normalized_claims = _coverage_text("".join(str(claim.get("text", "")) for claim in claims), list(by_id))
-        if normalized_answer != normalized_claims:
+        if not claims_cover_answer(answer, claims, list(by_id)):
             checked += 1
             item = {"text": "正文与逐条结论未按顺序完整对应。", "sourceIds": [],
                     "supported": False, "reason": "low_overlap"}

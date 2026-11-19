@@ -461,6 +461,7 @@ class ConversationCoordinator(StructuredAgent):
     ) -> dict:
         """Delegate the existing answer branch and preserve its result contract."""
         req, resolution = state
+        original = req.userInput
         conditions = self.base(req, resolution)
         if (
             resolution.action == "ADMISSION_LINKS"
@@ -499,7 +500,10 @@ class ConversationCoordinator(StructuredAgent):
                 in ("KNOWLEDGE_QA", "SCHOOL_RECOMMEND", "WRONG_QUESTION_TUTOR")
                 else "CHAT"
             )
-            result = await self.engine.run(req)
+            if req.taskType == "KNOWLEDGE_QA" and original == resolution.standaloneQuery:
+                result = await self.engine.run(req, general_question=original)
+            else:
+                result = await self.engine.run(req)
         result.update(conditions=conditions, standaloneQuery=resolution.standaloneQuery)
         return self.finish(result, resolution)
 
