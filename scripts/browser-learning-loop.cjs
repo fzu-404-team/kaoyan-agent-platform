@@ -44,10 +44,23 @@ const stage = text => process.stderr.write(`stage=${text}\n`);
    await expect(page.getByTestId('profile-kpi').locator('.evidence .kpi-value'))
     .toHaveText(/^\s*19\s*条\s*$/, {timeout:10000});
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-   stage('recommend');await page.goto(base+'/schools');await page.locator('.panel .el-switch').click();await page.getByRole('button',{name:'保存推荐设置',exact:true}).click();
-   await new Promise(resolve=>setTimeout(resolve,1500));await page.getByRole('button',{name:'刷新状态',exact:true}).click();
-   await page.getByText('推荐依据画像版本：',{exact:false}).waitFor({timeout:15000});
-   assert.equal((await get('/learning/recommendation-settings')).status,'CURRENT');
+   stage('recommend');
+   await page.goto(base+'/school-recommendations');
+   await page.getByRole('tab',{name:'自动更新',exact:true}).click();
+   const recommendationPanel=page.getByRole('tabpanel',{name:'自动更新',exact:true});
+   const autoUpdate=recommendationPanel.getByRole('switch',{name:'自动更新',exact:true});
+   await expect(autoUpdate).toBeEnabled();
+   await autoUpdate.press('Enter');
+   await expect(autoUpdate).toHaveAttribute('aria-checked','true');
+   await recommendationPanel.getByRole('button',{name:'保存推荐设置',exact:true}).click();
+   // Before saving, the disabled settings can also report CURRENT without a task.
+   await expect.poll(async () => {
+    const settings = await get('/learning/recommendation-settings');
+    return settings.enabled && settings.status === 'CURRENT' && Boolean(settings.lastTaskId);
+   }, {timeout:15000}).toBe(true);
+   await recommendationPanel.getByRole('button',{name:'刷新状态',exact:true}).click();
+   await recommendationPanel.getByText('学情与历史 408 单科对照',{exact:true}).click();
+   await recommendationPanel.getByText(/画像版本 \d+/).waitFor({timeout:15000});
    const history=await get('/recommends');assert.equal(history.length,1);assert.equal(history[0].resultPayload.explanationMode,'rules');
    if(process.argv[3])await page.screenshot({path:`${process.argv[3]}-${width}.png`,fullPage:true});
    checks.push({width,diagnosticCount:20,answered:19,unanswered:1,draftRestored:true,noEarlyGrading:true,profileUpdated:true,automaticRulesRecommendation:true});
