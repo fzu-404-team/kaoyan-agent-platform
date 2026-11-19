@@ -10,7 +10,7 @@
 
     <aside class="sidebar">
       <div class="logo">
-        <span class="logo-mark">考</span>
+        <img class="logo-mark" src="/logo.png" alt="" width="36" height="36" />
         <div>
           <div class="logo-name">考研 Agent</div>
           <div class="logo-slogan">智能备考平台</div>
@@ -169,10 +169,8 @@ const onLogout = async () => {
   border-bottom: 1px solid var(--fx-line);
 }
 .logo-mark {
-  width: 36px; height: 36px; border-radius: 10px; color: #fff;
-  display: grid; place-items: center; font-weight: 700; flex-shrink: 0;
-  background: linear-gradient(140deg, #4d7bff 0%, var(--c-primary-strong) 55%, #4b46e0 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 6px 14px -6px rgba(43, 90, 230, .7);
+  width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0; display: block;
+  box-shadow: 0 6px 14px -6px rgba(10, 21, 42, .6);
 }
 .logo-name { font-weight: 700; font-size: 15px; }
 .logo-slogan { font-size: 12px; color: var(--c-ink-2); margin-top: 2px; }

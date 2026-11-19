@@ -12,7 +12,7 @@
       <el-form-item prop="confirm">
         <el-input v-model="form.confirm" type="password" size="large" show-password placeholder="确认密码" :prefix-icon="Lock" />
       </el-form-item>
-      <el-button type="primary" size="large" round class="btn" :loading="loading" @click="onSubmit">注 册</el-button>
+      <el-button type="primary" size="large" class="btn" :loading="loading" @click="onSubmit">注 册</el-button>
     </el-form>
     <div class="foot">已有账号？<router-link to="/login">直接登录</router-link></div>
   </AuthLayout>

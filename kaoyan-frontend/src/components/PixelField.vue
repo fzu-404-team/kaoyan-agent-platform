@@ -10,9 +10,16 @@
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
+type Rgb = [number, number, number]
+
 // focusX / focusY：方格最密处的相对位置（0–1），textEnd：左侧文案区大致结束的相对横坐标
-const props = withDefaults(defineProps<{ cell?: number; gap?: number; radius?: number; focusX?: number; focusY?: number; textEnd?: number }>(), {
-  cell: 10, gap: 4, radius: 120, focusX: 0.78, focusY: 0.4, textEnd: 0.6
+// baseRgb：静态底格颜色；tintRgb：少量着色格及亮起起点；activeRgb：鼠标附近亮到的颜色
+const props = withDefaults(defineProps<{
+  cell?: number; gap?: number; radius?: number; focusX?: number; focusY?: number; textEnd?: number
+  baseRgb?: Rgb; tintRgb?: Rgb; activeRgb?: Rgb
+}>(), {
+  cell: 10, gap: 4, radius: 120, focusX: 0.78, focusY: 0.4, textEnd: 0.6,
+  baseRgb: () => [229, 231, 235], tintRgb: () => [147, 180, 255], activeRgb: () => [43, 90, 230]
 })
 
 interface Cell { x: number; y: number; tint: boolean; alpha: number }
@@ -71,15 +78,17 @@ function build() {
   level = new Float32Array(cells.length)
   target = new Float32Array(cells.length)
 
-  // 静态底图：灰色方格 + 少量淡蓝方格
+  // 静态底图：底格 + 少量着色格
   base = document.createElement('canvas')
   base.width = canvas.width
   base.height = canvas.height
   const b = base.getContext('2d')
   if (!b) return
   b.setTransform(dpr, 0, 0, dpr, 0, 0)
+  const [br, bg, bb] = props.baseRgb
+  const [tr, tg, tb] = props.tintRgb
   for (const c of cells) {
-    b.fillStyle = c.tint ? `rgba(147, 180, 255, ${c.alpha})` : `rgba(229, 231, 235, ${c.alpha})`
+    b.fillStyle = c.tint ? `rgba(${tr}, ${tg}, ${tb}, ${c.alpha})` : `rgba(${br}, ${bg}, ${bb}, ${c.alpha})`
     b.fillRect(c.x, c.y, props.cell, props.cell)
   }
   draw()
@@ -89,13 +98,15 @@ function draw() {
   if (!ctx || !base) return
   ctx.clearRect(0, 0, width, height)
   ctx.drawImage(base, 0, 0, width, height)
+  const [tr, tg, tb] = props.tintRgb
+  const [ar, ag, ab] = props.activeRgb
   for (let i = 0; i < cells.length; i++) {
     const v = level[i]
     if (v < 0.02) continue
-    // 亮起时从浅蓝过渡到主色
-    const r = Math.round(147 + (43 - 147) * v)
-    const g = Math.round(180 + (90 - 180) * v)
-    const bl = Math.round(255 + (230 - 255) * v)
+    // 亮起时从着色格颜色过渡到亮起色
+    const r = Math.round(tr + (ar - tr) * v)
+    const g = Math.round(tg + (ag - tg) * v)
+    const bl = Math.round(tb + (ab - tb) * v)
     ctx.fillStyle = `rgba(${r}, ${g}, ${bl}, ${0.25 + 0.65 * v})`
     ctx.fillRect(cells[i].x, cells[i].y, props.cell, props.cell)
   }

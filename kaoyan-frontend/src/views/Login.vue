@@ -10,7 +10,7 @@
       <el-form-item prop="password">
         <el-input v-model="form.password" type="password" size="large" show-password placeholder="密码" :prefix-icon="Lock" />
       </el-form-item>
-      <el-button type="primary" size="large" round class="btn" :loading="loading" @click="onSubmit">
+      <el-button type="primary" size="large" class="btn" :loading="loading" @click="onSubmit">
         登 录
       </el-button>
     </el-form>

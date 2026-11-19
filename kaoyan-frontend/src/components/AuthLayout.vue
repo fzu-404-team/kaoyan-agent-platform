@@ -1,45 +1,16 @@
 <template>
   <div class="wrap">
-    <!-- 整页共用的像素方格与柔光，左右两侧连成一体；均对读屏隐藏 -->
-    <PixelField class="page-pixels" :focus-x="0.56" :focus-y="0.45" :text-end="0.36" />
-    <span class="page-glow" aria-hidden="true" />
+    <!-- 整页共用的涂卡方格，左右两侧连成一体；对读屏隐藏 -->
+    <PixelField
+      class="page-pixels"
+      :focus-x="0.6" :focus-y="0.42" :text-end="0.4"
+      :base-rgb="[234, 229, 218]" :tint-rgb="[200, 206, 216]" :active-rgb="[47, 74, 122]"
+    />
 
     <section class="stage" aria-label="平台介绍">
-      <!-- 3D 球体：经纬线自转；外圈倾斜轨道上科目标签公转，转到背面时被球体遮住 -->
-      <div class="orbit" aria-hidden="true">
-        <div class="tilt">
-          <span class="ring r1" />
-          <span class="ring r2" />
-          <span class="ring r3" />
-          <div class="globe">
-            <span class="globe-body" />
-            <div class="globe-spin">
-              <span v-for="m in 6" :key="m" class="meridian" :style="{ '--m': `${m * 30}deg` }" />
-            </div>
-            <span class="lat lat-mid" />
-            <span class="lat lat-up" />
-            <span class="lat lat-down" />
-            <span class="globe-label">408</span>
-          </div>
-          <div class="spin">
-            <span v-for="(s, i) in orbitSubjects" :key="s.name" class="planet" :style="{ '--a': `${i * 90 + 20}deg`, '--r': `${s.r}px` }">
-              <span class="counter"><span class="face">{{ s.name }}</span></span>
-            </span>
-          </div>
-        </div>
-      </div>
-      <div class="float-card" aria-hidden="true">
-        <div class="fc-head"><span class="fc-tag">单选</span><span class="fc-sub">数据结构</span></div>
-        <span class="fc-line w90" />
-        <span class="fc-line w60" />
-        <div class="fc-opt"><i>A</i><span class="fc-bar w50" /></div>
-        <div class="fc-opt on"><i>B</i><span class="fc-bar w70" /><el-icon class="fc-check"><Check /></el-icon></div>
-        <div class="fc-opt"><i>C</i><span class="fc-bar w40" /></div>
-      </div>
-
       <div class="intro">
         <div class="brand reveal" style="--d: 0ms">
-          <span class="mark">考</span>
+          <img class="mark" src="/logo.png" alt="" width="40" height="40" />
           <span class="name">考研 Agent 平台</span>
         </div>
         <h1 class="display reveal" data-text="考研 Agent" style="--d: 100ms">考研 Agent</h1>
@@ -49,11 +20,34 @@
         </p>
         <p class="slogan reveal" style="--d: 320ms">{{ slogan }}</p>
         <p class="desc reveal" style="--d: 420ms">{{ desc }}</p>
-        <ul v-if="features.length" class="dots">
+        <ol v-if="features.length" class="dots">
           <li v-for="(f, i) in features" :key="f" class="reveal" :style="{ '--d': `${520 + i * 90}ms` }">
-            <el-icon aria-hidden="true"><Check /></el-icon>{{ f }}
+            <span class="dot-no" aria-hidden="true">{{ String(i + 1).padStart(2, '0') }}</span>{{ f }}
           </li>
-        </ul>
+        </ol>
+      </div>
+
+      <!-- 答题卡示意：四门科目各一行，只表示状态，不展示任何真实数据 -->
+      <div class="sheet" aria-hidden="true">
+        <div class="sheet-head">
+          <span class="sheet-title">答题卡</span>
+          <span class="sheet-sub">408 计算机学科专业基础</span>
+        </div>
+        <div v-for="(row, r) in sheetRows" :key="row.name" class="sheet-row">
+          <span class="row-name">{{ row.name }}</span>
+          <span class="row-cells">
+            <span
+              v-for="(state, c) in row.cells" :key="c"
+              class="cell" :class="state"
+              :style="{ '--i': r * 10 + c }"
+            >{{ c + 1 }}</span>
+          </span>
+        </div>
+        <div class="sheet-legend">
+          <span><i class="lg done" />已判</span>
+          <span><i class="lg wrong" />判错</span>
+          <span><i class="lg draft" />草稿</span>
+        </div>
       </div>
     </section>
 
@@ -67,20 +61,22 @@
 
 <script setup lang="ts">
 /**
- * 登录 / 注册共用布局：左侧浅色品牌区（像素方格、渐变大标题、打字机、答题卡示意），右侧表单卡片。
- * 页面只通过默认插槽提供表单；左侧不放任何输入控件。
+ * 登录 / 注册共用布局：左侧纸色品牌区（涂卡方格、宋体标题、打字机、答题卡示意），右侧表单卡片。
+ * 视觉沿用刷题页“答题纸”方向；页面只通过默认插槽提供表单，左侧不放任何输入控件。
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import PixelField from '@/components/PixelField.vue'
-import { Check } from '@element-plus/icons-vue'
 
 withDefaults(defineProps<{ slogan: string; desc: string; features?: string[] }>(), { features: () => [] })
 
-const orbitSubjects = [
-  { name: '数据结构', r: 205 },
-  { name: '操作系统', r: 155 },
-  { name: '计算机网络', r: 205 },
-  { name: '计算机组成原理', r: 155 }
+type CellState = 'done' | 'wrong' | 'draft' | 'now' | ''
+
+// 每行 10 格：已判、判错、草稿、当前题与未作答，四行各不相同，避免看起来像复制
+const sheetRows: { name: string; cells: CellState[] }[] = [
+  { name: '数据结构', cells: ['done', 'done', 'done', 'wrong', 'done', 'done', 'done', 'done', '', ''] },
+  { name: '组成原理', cells: ['done', 'wrong', 'done', 'done', 'draft', '', '', '', '', ''] },
+  { name: '操作系统', cells: ['done', 'done', 'done', 'done', 'done', 'wrong', 'done', 'now', '', 'draft'] },
+  { name: '计算机网络', cells: ['done', 'done', 'done', '', '', '', '', '', '', ''] }
 ]
 
 // 打字机：逐字打出、停留、逐字删除后切换下一条；减少动态效果时直接显示完整内容
@@ -104,136 +100,53 @@ onBeforeUnmount(() => window.clearTimeout(typerTimer))
 </script>
 
 <style scoped lang="scss">
+/* 答题纸方向的局部变量；刷题页落地后再提升为全局设计变量 */
 .wrap {
+  --paper: #f4f1ea;
+  --paper-card: #fbf9f4;
+  --paper-2: #ece7dc;
+  --paper-3: #e3ddcf;
+  --ink: #23211d;
+  --ink-2: #5c574e;
+  --ink-3: #6f695f;
+  --rule: #d8d1c2;
+  --pen: #2f4a7a;
+  --pen-deep: #253c64;
+  --pen-tint: #e4e6e6;
+  --red: #b23a2e;
+  --serif: "Songti SC", "Noto Serif SC", "Source Han Serif SC", "STSong", serif;
+  --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+
   position: relative; overflow: hidden; isolation: isolate;
   min-height: 100vh; display: flex;
-  background: linear-gradient(180deg, #ffffff 0%, #f5f8ff 100%);
+  background: var(--paper);
+  color: var(--ink);
 }
-/* 整页背景层：像素方格在最底，柔光在其上 */
-.page-pixels { z-index: -2; }
-.page-glow {
-  position: absolute; z-index: -1; left: 38%; top: -200px; width: 760px; height: 600px; pointer-events: none;
-  background: radial-gradient(closest-side, rgba(59, 130, 246, .13), transparent);
-}
+.page-pixels { z-index: -1; }
 
-/* ---------- 左侧品牌区（背景透明，共用整页方格） ---------- */
+/* ---------- 左侧品牌区 ---------- */
 .stage {
-  position: relative; overflow: hidden; isolation: isolate; container-type: inline-size;
-  flex: 1; min-width: 0; padding: 56px 64px; color: #111827;
-  display: flex; flex-direction: column; justify-content: center;
+  position: relative; container-type: inline-size;
+  flex: 1; min-width: 0; padding: 56px 64px;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 48px;
 }
-
-/* 3D 球体与倾斜轨道：.tilt 把轨道平面放倒，标签用反向旋转抵消，始终正对屏幕 */
-.orbit {
-  position: absolute; right: 10px; bottom: -110px; width: 460px; height: 460px; z-index: -1;
-  perspective: 1100px;
-}
-.tilt {
-  position: absolute; inset: 0; transform-style: preserve-3d;
-  transform: rotateX(64deg) rotateZ(-12deg);
-}
-.ring {
-  position: absolute; left: 50%; top: 50%; border-radius: 50%;
-  border: 1px solid rgba(43, 90, 230, .22); transform: translate(-50%, -50%);
-}
-.r1 { width: 250px; height: 250px; }
-.r2 { width: 310px; height: 310px; border-style: dashed; border-color: rgba(43, 90, 230, .18); }
-.r3 { width: 410px; height: 410px; }
-.spin { position: absolute; inset: 0; transform-style: preserve-3d; animation: spin-z 40s linear infinite; }
-.planet {
-  position: absolute; left: 50%; top: 50%; transform-style: preserve-3d;
-  transform: rotateZ(var(--a)) translateX(var(--r)) rotateZ(calc(-1 * var(--a)));
-}
-.counter { position: absolute; transform-style: preserve-3d; animation: spin-z 40s linear infinite reverse; }
-.face {
-  position: absolute; display: block; white-space: nowrap;
-  translate: -50% -50%; transform: rotateZ(12deg) rotateX(-64deg);
-  padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 600;
-  color: var(--c-primary-deep); background: rgba(255, 255, 255, .92); border: 1px solid #dbe3f5;
-  box-shadow: 0 8px 18px -10px rgba(30, 64, 175, .45);
-}
-@keyframes spin-z { to { transform: rotateZ(360deg); } }
-
-/* 球体本身也放进 3D 平面，并用反向倾斜立起来，这样前后遮挡由浏览器按深度处理 */
-.globe {
-  position: absolute; left: 50%; top: 50%; width: 170px; height: 170px; margin: -85px 0 0 -85px;
-  transform-style: preserve-3d; transform: rotateZ(12deg) rotateX(-64deg);
-}
-.globe-body {
-  position: absolute; inset: 0; border-radius: 50%;
-  background: radial-gradient(circle at 34% 28%, #ffffff 0%, #d6e3ff 22%, #6f98f5 58%, #2b5ae6 82%, #1f47c2 100%);
-  box-shadow: 0 0 0 10px rgba(43, 90, 230, .06), 0 20px 60px -10px rgba(43, 90, 230, .55);
-  animation: glow 4s ease-in-out infinite;
-}
-@keyframes glow { 50% { box-shadow: 0 0 0 16px rgba(43, 90, 230, .04), 0 20px 80px -6px rgba(43, 90, 230, .7); } }
-.globe-spin { position: absolute; inset: 0; transform-style: preserve-3d; animation: spin-y 14s linear infinite; }
-.meridian {
-  position: absolute; inset: 0; border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, .55); transform: rotateY(var(--m));
-}
-@keyframes spin-y { to { transform: rotateY(360deg); } }
-.lat { position: absolute; left: 50%; top: 50%; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .45); }
-.lat-mid { width: 170px; height: 170px; transform: translate(-50%, -50%) rotateX(90deg); }
-.lat-up { width: 140px; height: 140px; transform: translate(-50%, -50%) translateY(-48px) rotateX(90deg); }
-.lat-down { width: 140px; height: 140px; transform: translate(-50%, -50%) translateY(48px) rotateX(90deg); }
-.globe-label {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) translateZ(86px);
-  font-size: 26px; font-weight: 800; letter-spacing: 1px; color: #fff;
-  text-shadow: 0 2px 10px rgba(17, 39, 120, .45);
-}
-
-/* 答题卡示意：只用色条，不展示任何数据 */
-.float-card {
-  position: absolute; right: 56px; top: 14%; width: 220px; z-index: 0;
-  padding: 16px; border-radius: 16px;
-  background: #fff; border: 1px solid #e5e7eb;
-  box-shadow: 0 1px 2px rgba(17, 24, 39, .04), 0 24px 48px -28px rgba(30, 64, 175, .45);
-  animation: bob 6s ease-in-out infinite;
-}
-@keyframes bob { 50% { transform: translateY(-10px); } }
-.fc-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 12px; }
-.fc-tag { padding: 2px 8px; border-radius: 999px; background: var(--c-primary-strong); color: #fff; font-weight: 700; }
-.fc-sub { color: #6b7280; }
-.fc-line, .fc-bar { display: block; height: 8px; border-radius: 6px; background: #e5e7eb; }
-.fc-line { margin-bottom: 8px; }
-.fc-opt {
-  display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 6px 8px;
-  border-radius: 10px; border: 1px solid #e5e7eb;
-}
-.fc-opt i {
-  width: 18px; height: 18px; border-radius: 6px; display: grid; place-items: center;
-  font-style: normal; font-size: 11px; font-weight: 700; background: #f3f4f6; color: #374151;
-}
-.fc-opt .fc-bar { height: 6px; }
-.fc-opt.on { background: var(--c-primary-light); border-color: var(--c-primary-strong); }
-.fc-opt.on i { background: var(--c-primary-strong); color: #fff; }
-.fc-opt.on .fc-bar { background: #bfcef8; }
-.fc-check { margin-left: auto; color: var(--c-primary-strong); }
-.w90 { width: 90%; } .w70 { width: 70%; } .w60 { width: 60%; } .w50 { width: 50%; } .w40 { width: 40%; }
-
-.intro { position: relative; z-index: 1; max-width: 500px; }
+.intro { max-width: 420px; }
 .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 40px; }
-.mark {
-  width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0; color: #fff;
-  display: grid; place-items: center; font-weight: 700;
-  background: linear-gradient(140deg, #4d7bff 0%, #2b5ae6 55%, #1f47c2 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 8px 18px -8px rgba(43, 90, 230, .7);
-}
-.name { font-weight: 600; color: #374151; }
+.mark { width: 40px; height: 40px; border-radius: 9px; flex-shrink: 0; display: block; }
+.name { font-weight: 600; color: var(--ink-2); }
 
-/* 超大标题：深色到主色的渐变字，悬停时轻微错位 */
 .display {
-  position: relative; display: inline-block; margin: 0 0 14px;
-  font-size: 60px; line-height: 1.1; font-weight: 800; letter-spacing: 1px;
-  background: linear-gradient(90deg, #111827 0%, #1f47c2 55%, #2b5ae6 100%);
-  -webkit-background-clip: text; background-clip: text; color: transparent;
+  position: relative; display: inline-block;
+  margin: 0 0 16px;
+  font-family: var(--serif); font-size: 60px; line-height: 1.1; font-weight: 700; letter-spacing: .02em;
+  color: var(--ink);
 }
+/* 悬停时的套印错位：钢笔蓝与批改红两层短暂错开，像印刷没对准，随后归位 */
 .display::before, .display::after {
   content: attr(data-text); position: absolute; inset: 0; pointer-events: none; opacity: 0;
-  background: none; -webkit-text-fill-color: currentColor;
 }
-.display::before { color: #1f47c2; }
-.display::after { color: #38bdf8; }
+.display::before { color: var(--pen); }
+.display::after { color: var(--red); }
 @media (hover: hover) {
   .display:hover::before { animation: glitch-a .32s steps(2) both; }
   .display:hover::after { animation: glitch-b .32s steps(2) both; }
@@ -248,26 +161,74 @@ onBeforeUnmount(() => window.clearTimeout(typerTimer))
   50% { opacity: .8; clip-path: inset(15% 0 60% 0); transform: translate(-3px, -1px); }
   100% { opacity: 0; clip-path: inset(0); transform: none; }
 }
-
 .typer {
-  min-height: 28px; margin: 0 0 18px;
-  font-size: 18px; font-weight: 600; color: var(--c-primary-strong);
-  font-family: ui-monospace, SFMono-Regular, Menlo, 'PingFang SC', monospace;
+  min-height: 28px; margin: 0 0 22px;
+  font-family: var(--mono); font-size: 17px; font-weight: 600; color: var(--pen);
 }
 .caret {
   display: inline-block; width: 2px; height: 1.1em; margin-left: 3px; vertical-align: -3px;
-  background: var(--c-primary-strong); animation: blink 1s steps(1) infinite;
+  background: var(--pen); animation: blink 1s steps(1) infinite;
 }
 @keyframes blink { 50% { opacity: 0; } }
-.slogan { margin: 0 0 12px; font-size: 20px; font-weight: 700; letter-spacing: .3em; color: #111827; }
-.desc { margin: 0 0 24px; font-size: 14px; line-height: 1.7; color: #4b5563; }
-.dots { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
-.dots li {
-  display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 999px;
-  background: #fff; border: 1px solid #e5e7eb; color: #1f2937;
-  box-shadow: 0 1px 2px rgba(17, 24, 39, .04);
+.slogan { margin: 0 0 10px; font-family: var(--serif); font-size: 21px; font-weight: 700; letter-spacing: .2em; color: var(--ink); }
+.desc { margin: 0 0 28px; font-size: 14px; line-height: 1.75; color: var(--ink-2); }
+.dots {
+  display: grid; gap: 10px; margin: 0; padding: 22px 0 0; list-style: none;
+  border-top: 1px solid var(--rule); font-size: 14px; color: var(--ink);
 }
-.dots li .el-icon { color: var(--c-primary-strong); }
+.dots li { display: flex; align-items: baseline; gap: 14px; }
+.dot-no { font-family: var(--mono); font-size: 12px; color: var(--ink-3); }
+
+/* 答题卡示意：一张略微倾斜的纸 */
+.sheet {
+  width: 340px; padding: 22px 22px 18px;
+  background: var(--paper-card);
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px var(--rule), 0 24px 48px -30px rgba(35, 33, 29, .45);
+  transform: rotate(-1.5deg);
+  /* 入场后缓慢上下漂浮；漂浮用独立的 translate 属性，不覆盖倾斜角度 */
+  animation:
+    sheet-in .8s cubic-bezier(.2, .7, .2, 1) .2s both,
+    sheet-bob 6s ease-in-out 1s infinite;
+}
+@keyframes sheet-in { from { opacity: 0; transform: rotate(-4deg) translateY(16px); } }
+@keyframes sheet-bob { 50% { translate: 0 -10px; } }
+.sheet-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--rule);
+}
+.sheet-title { font-family: var(--serif); font-size: 18px; font-weight: 700; letter-spacing: .1em; }
+.sheet-sub { font-size: 12px; color: var(--ink-3); }
+.sheet-row { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 8px; margin-bottom: 10px; }
+.row-name { font-size: 12px; color: var(--ink-2); }
+.row-cells { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
+.cell {
+  position: relative; height: 24px; border-radius: 3px;
+  display: grid; place-items: center;
+  font-family: var(--mono); font-size: 10px; color: var(--ink-3);
+  border: 1px solid var(--rule);
+}
+/* 格子默认就是最终状态；入场动画只从空白填进来，减少动态效果时直接显示结果 */
+.cell.done, .cell.wrong {
+  background: var(--paper-3); border-color: var(--paper-3); color: var(--ink-2);
+  animation: cell-in .35s ease-out both; animation-delay: calc(500ms + var(--i) * 18ms);
+}
+.cell.wrong { color: var(--red); }
+.cell.wrong::after {
+  content: ""; position: absolute; left: 4px; right: 4px; top: 50%;
+  height: 2px; margin-top: -1px; border-radius: 2px; background: var(--red);
+  transform: rotate(-28deg); transform-origin: left center;
+  animation: pen-stroke .3s ease-out both; animation-delay: calc(700ms + var(--i) * 18ms);
+}
+.cell.draft { border-style: dashed; border-color: var(--pen); color: var(--pen); }
+.cell.now { border: 2px solid var(--ink); color: var(--ink); font-weight: 700; }
+@keyframes cell-in { from { background: transparent; border-color: var(--rule); } }
+@keyframes pen-stroke { from { transform: rotate(-28deg) scaleX(0); } }
+.sheet-legend { display: flex; gap: 16px; margin-top: 14px; font-size: 12px; color: var(--ink-3); }
+.lg { display: inline-block; width: 10px; height: 10px; margin-right: 5px; vertical-align: -1px; border-radius: 2px; }
+.lg.done { background: var(--paper-3); }
+.lg.wrong { background: var(--red); }
+.lg.draft { border: 1px dashed var(--pen); }
 
 /* 入场：依次淡入上移 */
 .reveal { opacity: 0; animation: rise .7s cubic-bezier(.2, .7, .2, 1) forwards; animation-delay: var(--d, 0ms); }
@@ -275,60 +236,78 @@ onBeforeUnmount(() => window.clearTimeout(typerTimer))
 
 /* ---------- 右侧表单区（表单内容来自页面插槽） ---------- */
 .right {
-  position: relative;
-  width: 500px; flex-shrink: 0;
+  width: 460px; flex-shrink: 0;
   display: grid; place-items: center; padding: 40px;
 }
 .panel {
-  position: relative; width: 100%; max-width: 380px; padding: 36px 32px 28px;
-  background: #fff; border: 1px solid #e5e7eb; border-radius: 24px;
-  box-shadow: 0 1px 2px rgba(17, 24, 39, .04), 0 30px 60px -36px rgba(30, 64, 175, .4);
+  /* 表单校验提示改用批改红，在纸色底上对比度足够 */
+  --el-color-danger: var(--red);
+  width: 100%; max-width: 380px; padding: 36px 32px 28px;
+  background: var(--paper-card);
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px var(--rule), 0 30px 60px -40px rgba(35, 33, 29, .5);
   animation: rise .7s cubic-bezier(.2, .7, .2, 1) .15s both;
 }
-.panel :slotted(.title) { font-size: 26px; margin: 0 0 6px; color: #111827; }
-.panel :slotted(.sub) { color: var(--c-ink-2); margin: 0 0 28px; }
-/* 按钮是 Element 组件根元素，:slotted 匹配不到，用 :deep */
-.panel :deep(.btn) { width: 100%; margin-top: 4px; letter-spacing: 2px; }
-.panel :slotted(.foot) { text-align: center; margin-top: 18px; color: var(--c-ink-2); font-size: 13px; }
-.panel :deep(.el-input__wrapper) {
-  border-radius: 12px; transition: box-shadow .15s ease;
-}
-.panel :deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 1px var(--c-primary-strong) inset, 0 0 0 4px rgba(43, 90, 230, .14);
-}
+.panel :deep(.title) { font-family: var(--serif); font-size: 28px; font-weight: 700; margin: 0 0 6px; color: var(--ink); }
+.panel :deep(.sub) { color: var(--ink-2); margin: 0 0 28px; }
+.panel :deep(.foot) { text-align: center; margin-top: 18px; color: var(--ink-2); font-size: 13px; }
+.panel :deep(.foot a) { color: var(--pen); font-weight: 600; }
+.panel :deep(.foot a:hover) { text-decoration: underline; text-underline-offset: 3px; }
 
-/* 按左侧区域自身宽度决定装饰：太窄时不显示，避免压住文案 */
-@container (max-width: 760px) {
-  .float-card { display: none; }
+/* 输入框：纸面白底、细描边，聚焦时钢笔蓝；字号 16px，避免手机聚焦时页面被放大 */
+.panel :deep(.el-input__wrapper) {
+  background: #fffdf8; border-radius: 6px;
+  box-shadow: 0 0 0 1px var(--rule) inset;
+  transition: box-shadow .15s ease;
 }
-@container (max-width: 600px) {
-  .orbit { display: none; }
+.panel :deep(.el-input__wrapper:hover) { box-shadow: 0 0 0 1px var(--ink-3) inset; }
+.panel :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px var(--pen) inset, 0 0 0 3px rgba(47, 74, 122, .14);
 }
-/* 矮屏（常见笔记本浏览器）：球体缩小下沉，避免碰到垂直居中的文案；再矮则不显示 */
-@media (max-height: 780px) {
-  .orbit { scale: .72; transform-origin: 100% 100%; bottom: -90px; }
+.panel :deep(.el-input__inner) { font-size: 16px; color: var(--ink); }
+.panel :deep(.el-input__inner::placeholder) { color: var(--ink-3); }
+.panel :deep(.el-input__prefix), .panel :deep(.el-input__suffix) { color: var(--ink-3); }
+
+/* 主按钮：钢笔蓝实色，覆盖全局主按钮的渐变与投影（这里选择器更具体） */
+.wrap .panel :deep(.el-button.el-button--primary.btn) {
+  --el-button-bg-color: var(--pen);
+  --el-button-border-color: var(--pen);
+  --el-button-hover-bg-color: var(--pen-deep);
+  --el-button-hover-border-color: var(--pen-deep);
+  --el-button-active-bg-color: var(--pen-deep);
+  --el-button-active-border-color: var(--pen-deep);
+  width: 100%; margin-top: 4px; height: 44px;
+  border-radius: 6px; background-image: none; box-shadow: none;
+  font-size: 15px; letter-spacing: 2px;
 }
-@media (max-height: 620px) {
-  .orbit { display: none; }
+.wrap .panel :deep(.el-button.el-button--primary.btn:active) { transform: translateY(1px); }
+.wrap .panel :deep(.el-button.el-button--primary.btn:focus-visible) { outline: 3px solid var(--pen); outline-offset: 2px; }
+
+/* 按左侧区域自身宽度决定是否显示答题卡，太窄时不压住文案 */
+@container (max-width: 800px) {
+  .sheet { display: none; }
 }
 @media (max-width: 900px) {
   .wrap { flex-direction: column; }
-  .stage { flex: none; padding: 36px 24px 48px; }
+  .stage { display: block; flex: none; padding: 32px 24px 24px; }
   .brand { margin-bottom: 24px; }
   .display { font-size: 44px; }
   .right { width: 100%; padding: 8px 16px 40px; }
   .panel { max-width: 440px; }
 }
 @media (max-width: 480px) {
-  .stage { padding: 28px 20px 44px; }
-  .display { font-size: 38px; }
-  .typer { font-size: 16px; }
-  .slogan { font-size: 17px; letter-spacing: .2em; }
+  .stage { padding: 24px 20px 20px; }
+  .brand { margin-bottom: 18px; }
+  .display { font-size: 38px; margin-bottom: 10px; }
+  .typer { font-size: 15px; margin-bottom: 14px; }
+  .slogan { font-size: 17px; letter-spacing: .14em; margin-bottom: 0; }
+  /* 手机上让表单进入首屏：说明与特性列表收起，品牌、打字机与标语保留 */
+  .desc, .dots { display: none; }
   .panel { padding: 28px 20px 24px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .float-card, .caret, .panel, .reveal, .display::before, .display::after,
-  .spin, .counter, .globe-spin, .globe-body { animation: none !important; }
+  .caret, .panel, .reveal, .sheet, .cell, .cell::after,
+  .display::before, .display::after { animation: none !important; }
   .reveal { opacity: 1; }
   .caret { display: none; }
   .panel :deep(.el-input__wrapper) { transition: none; }
