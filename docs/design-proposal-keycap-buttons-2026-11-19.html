@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>按键设计提案：妙控键帽</title>
+<style>
+  :root {
+    --paper: #f4f1ea; --paper-card: #fbf9f4; --paper-2: #ece7dc; --paper-3: #e3ddcf;
+    --ink: #23211d; --ink-2: #5c574e; --ink-3: #6f695f; --rule: #d8d1c2;
+    --pen: #2f4a7a; --pen-deep: #1e3152; --red: #b23a2e; --amber: #8a5a12;
+    --serif: "Songti SC", "Noto Serif SC", "Source Han Serif SC", serif;
+    --sans: -apple-system, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --mono: "SF Mono", Menlo, Consolas, monospace;
+    --travel: 2px;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--paper); }
+  body {
+    margin: 0; color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.75;
+    -webkit-font-smoothing: antialiased; background: var(--paper);
+  }
+  .doc { max-width: 1040px; margin: 0 auto; padding: 56px 32px 96px; }
+  h1 { font-family: var(--serif); font-size: 34px; line-height: 1.3; margin: 0 0 12px; }
+  h2 { font-family: var(--serif); font-size: 22px; margin: 56px 0 14px; padding-top: 22px; border-top: 1px solid var(--rule); }
+  h3 { font-size: 15px; margin: 26px 0 8px; }
+  p { margin: 0 0 12px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 24px; color: var(--ink-2); font-size: 13px; margin-bottom: 22px; }
+  .status { color: var(--amber); font-weight: 700; }
+  .lead { font-size: 17px; max-width: 760px; }
+  ul, ol { margin: 0 0 12px; padding-left: 22px; }
+  li { margin-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; margin: 6px 0 14px; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font-weight: 600; color: var(--ink-2); font-size: 13px; background: var(--paper-2); }
+  code { font-family: var(--mono); font-size: 13px; background: var(--paper-2); padding: 1px 5px; border-radius: 4px; }
+  .sw { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: -2px; margin-right: 6px; box-shadow: inset 0 0 0 1px rgba(35,33,29,.15); }
+  .warn { color: var(--red); font-weight: 600; }
+  .note { font-size: 13px; color: var(--ink-2); }
+
+  /* ---------- 实样区 ---------- */
+  .stage {
+    margin: 24px 0 8px; padding: 40px; border-radius: 10px;
+    background-color: var(--paper);
+    background-image: linear-gradient(rgba(35,33,29,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(35,33,29,.04) 1px, transparent 1px);
+    background-size: 14px 14px;
+    box-shadow: inset 0 0 0 1px var(--rule);
+    display: grid; grid-template-columns: 340px 1fr; gap: 48px; align-items: center;
+  }
+  .panel { background: var(--paper-card); border-radius: 10px; padding: 30px 26px 24px; box-shadow: 0 0 0 1px var(--rule), 0 30px 60px -40px rgba(35,33,29,.5); }
+  .panel .t { font-family: var(--serif); font-size: 24px; font-weight: 700; margin: 0 0 4px; }
+  .panel .s { color: var(--ink-2); font-size: 13px; margin: 0 0 20px; }
+  .input { height: 44px; border-radius: 8px; background: #fffdf8; box-shadow: inset 0 1px 2px rgba(35,33,29,.08), inset 0 0 0 1px var(--rule); margin-bottom: 14px; padding: 0 14px; display: flex; align-items: center; color: var(--ink-3); font-size: 16px; }
+  .foot { text-align: center; margin-top: 16px; font-size: 13px; color: var(--ink-2); }
+  .foot a { color: var(--pen); font-weight: 600; }
+  .row { display: grid; grid-template-columns: 64px 1fr; gap: 16px; align-items: center; margin-bottom: 22px; }
+  .row:last-child { margin-bottom: 0; }
+  .lbl { font-size: 12px; color: var(--ink-3); letter-spacing: .1em; }
+  .items { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+  .item { display: grid; gap: 8px; justify-items: center; }
+  .cap { font-size: 11px; color: var(--ink-3); line-height: 1; }
+
+  .key {
+    appearance: none; border: 0; cursor: pointer; position: relative;
+    height: 46px; padding: 0 20px; border-radius: 9px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 12px;
+    font: 600 15px/1 var(--sans); letter-spacing: .02em; color: var(--ink);
+    background: linear-gradient(180deg, #fffdf8 0%, #f1ece1 100%);
+    box-shadow: inset 0 1px 0 #fff, 0 0 0 1px #cfc6b3, 0 var(--travel) 0 1px #c6bca7, 0 calc(var(--travel) + 6px) 12px -6px rgba(35,33,29,.4);
+    transition: transform .06s ease-out, box-shadow .06s ease-out;
+  }
+  .key:hover, .key.is-hover { background: linear-gradient(180deg, #fff 0%, #f5f1e8 100%); }
+  .key:active, .key.is-active { transform: translateY(var(--travel)); box-shadow: inset 0 1px 0 #fff, 0 0 0 1px #cfc6b3, 0 0 0 1px #c6bca7, 0 2px 4px -2px rgba(35,33,29,.35); }
+  .key.block { width: 100%; justify-content: space-between; }
+  .key.sm { height: 38px; padding: 0 14px; font-size: 14px; border-radius: 8px; }
+  .ink { color: #fff; background: linear-gradient(180deg, #3a5788 0%, #2b4573 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.22), 0 0 0 1px #233a62, 0 var(--travel) 0 1px var(--pen-deep), 0 calc(var(--travel) + 6px) 14px -6px rgba(30,49,82,.6); }
+  .ink:hover, .ink.is-hover { background: linear-gradient(180deg, #3f5d90 0%, #2f4a7a 100%); }
+  .ink:active, .ink.is-active { box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 0 0 1px #233a62, 0 0 0 1px var(--pen-deep), 0 2px 4px -2px rgba(30,49,82,.5); }
+  .red { color: var(--red); }
+  .key:disabled { color: rgba(35,33,29,.35); background: #ece7dc; box-shadow: 0 0 0 1px #d8d1c2; transform: translateY(var(--travel)); cursor: not-allowed; }
+  /* 焦点环用实色钢笔蓝：与纸色底对比 7.8:1（半透明版本只有 2.2:1，已在本提案中修正） */
+  .key:focus-visible, .key.is-focus { outline: 3px solid var(--pen); outline-offset: 4px; }
+  .glyph { font: 500 12px var(--mono); padding: 3px 6px; border-radius: 5px; background: rgba(35,33,29,.07); color: var(--ink-2); }
+  .ink .glyph { background: rgba(255,255,255,.16); color: rgba(255,255,255,.9); }
+  .opt { width: 46px; padding: 0; font: 700 17px var(--mono); }
+  .opt.on { color: #fff; background: linear-gradient(180deg, #3a5788 0%, #2b4573 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 0 0 1px #233a62, 0 0 0 1px var(--pen-deep), 0 2px 4px -2px rgba(30,49,82,.5); transform: translateY(var(--travel)); }
+  .dots { display: inline-flex; gap: 4px; }
+  .dots i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .4; }
+  .dots i:nth-child(2) { opacity: .7; } .dots i:nth-child(3) { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { .key { transition: none; } }
+
+  .decide { list-style: none; padding: 0; }
+  .decide li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--rule); margin: 0; }
+  .box { width: 14px; height: 14px; margin-top: 6px; border: 1.5px solid var(--ink-3); border-radius: 3px; }
+  .sign { display: grid; grid-template-columns: 120px 1fr; gap: 10px 16px; margin-top: 10px; }
+  .sign span:nth-child(odd) { color: var(--ink-2); }
+  .line { border-bottom: 1px solid var(--ink-3); min-height: 26px; }
+
+  @media (max-width: 860px) {
+    .doc { padding: 32px 16px 64px; }
+    .stage { grid-template-columns: 1fr; padding: 24px 16px; gap: 32px; }
+    table { font-size: 13px; }
+    th, td { padding: 8px 6px; }
+  }
+  @media print {
+    .stage { break-inside: avoid; }
+    h2 { break-after: avoid; }
+  }
+</style>
+</head>
+<body>
+<main class="doc">
+  <h1>按键设计提案：妙控键帽</h1>
+  <div class="meta">
+    <span>状态：<span class="status">待审批</span></span>
+    <span>日期：2026-11-19</span>
+    <span>适用：考研 Agent 平台前端（kaoyan-frontend）</span>
+    <span>依赖：答题纸视觉方向（登录页已采用）</span>
+  </div>
+  <p class="lead">把平台的按键做成苹果妙控键盘的键帽：每个按键有 2px 键程和底座阴影，按下时真的沉下去；常用快捷键直接印在按键上。刷题本来就靠键盘作答，这套按键让快捷键看得见。</p>
+  <p class="note">本页的实样都可以操作：鼠标悬停、按下、用 Tab 键切换焦点，感受键程和反馈。键帽放进完整界面后的效果见同目录的 <a href="prototype-full-2026-11-19.html">全量原型</a>（覆盖平台全部页面，可在地址后加 <code>?state=session</code> 等直接打开某个画面）；早先的 <a href="prototype-answer-paper-2026-11-19.html">核心流程原型</a> 仍保留。</p>
+
+  <section class="stage" aria-label="按键实样">
+    <div class="panel">
+      <p class="t">欢迎回来</p>
+      <p class="s">登录你的账号继续备考</p>
+      <div class="input">用户名</div>
+      <div class="input">密码</div>
+      <button class="key ink block"><span>登 录</span><span class="glyph">return ↵</span></button>
+      <div class="foot">还没有账号？<a>立即注册</a></div>
+    </div>
+    <div>
+      <div class="row"><span class="lbl">主按钮</span><div class="items">
+        <div class="item"><button class="key ink">提交答案<span class="glyph">↵</span></button><span class="cap">默认</span></div>
+        <div class="item"><button class="key ink is-hover">提交答案<span class="glyph">↵</span></button><span class="cap">悬停</span></div>
+        <div class="item"><button class="key ink is-active">提交答案<span class="glyph">↵</span></button><span class="cap">按下</span></div>
+        <div class="item"><button class="key ink">提交中<span class="dots"><i></i><i></i><i></i></span></button><span class="cap">加载</span></div>
+        <div class="item"><button class="key ink" disabled>提交答案<span class="glyph">↵</span></button><span class="cap">禁用</span></div>
+      </div></div>
+      <div class="row"><span class="lbl">次按钮</span><div class="items">
+        <div class="item"><button class="key">查看回顾</button><span class="cap">默认</span></div>
+        <div class="item"><button class="key is-active">查看回顾</button><span class="cap">按下</span></div>
+        <div class="item"><button class="key is-focus">查看回顾</button><span class="cap">键盘焦点</span></div>
+        <div class="item"><button class="key red">移出错题本</button><span class="cap">危险</span></div>
+      </div></div>
+      <div class="row"><span class="lbl">翻题</span><div class="items">
+        <div class="item"><button class="key sm"><span class="glyph">←</span>上一题</button><span class="cap">待定快捷键</span></div>
+        <div class="item"><button class="key sm">下一题<span class="glyph">→</span></button><span class="cap">待定快捷键</span></div>
+      </div></div>
+      <div class="row"><span class="lbl">刷题页</span><div class="items">
+        <button class="key opt on">A</button>
+        <button class="key opt">B</button>
+        <button class="key opt">C</button>
+        <button class="key opt">D</button>
+        <button class="key ink">提交答案<span class="glyph">↵</span></button>
+      </div></div>
+    </div>
+  </section>
+
+  <h2>1. 为什么选这一套</h2>
+  <ul>
+    <li><b>反馈最明确。</b>按下时键帽下沉 2px、底座阴影收起，一眼能看出“已经按到了”。长时间刷题时，确认感比装饰更重要。</li>
+    <li><b>和刷题方式一致。</b>刷题页已支持 <code>A</code>–<code>D</code>、<code>1</code>–<code>4</code> 选择、<code>Enter</code> 提交。键符印在按键上，用户不用读说明就知道可以用键盘做题。</li>
+    <li><b>沿用已采用的答题纸配色。</b>主色仍是钢笔蓝 <code>#2F4A7A</code>，危险操作仍用批改红 <code>#B23A2E</code>，不新增颜色。</li>
+  </ul>
+  <p class="note">同轮对比过的另外两套：A「墨水分级」（苹果四级主次，最稳但记忆点弱）、B「纸上液态玻璃」（半透明胶囊，最大胆，但依赖背景纹理、低端设备上毛玻璃耗性能、长时间使用易分心）。</p>
+
+  <h2>2. 规格</h2>
+  <h3>尺寸</h3>
+  <table>
+    <tr><th>类型</th><th>高度</th><th>左右内边距</th><th>圆角</th><th>字号 / 字重</th><th>用途</th></tr>
+    <tr><td>标准键</td><td>46px</td><td>20px</td><td>9px</td><td>15px / 600</td><td>主操作、次操作</td></tr>
+    <tr><td>小号键</td><td>38px（触屏 44px）</td><td>14px</td><td>8px</td><td>14px / 600</td><td>翻题、工具栏</td></tr>
+    <tr><td>选项键</td><td>46 × 46px</td><td>—</td><td>9px</td><td>17px / 700 等宽</td><td>刷题 A–D 选项</td></tr>
+    <tr><td>通栏键</td><td>46px，宽 100%</td><td>20px</td><td>9px</td><td>15px / 600</td><td>登录、注册；文字靠左、键符靠右</td></tr>
+  </table>
+  <p class="note">键程统一为 2px（变量 <code>--travel</code>）。小号键在触屏设备上提高到 44px，满足最小触控尺寸。</p>
+
+  <h3>颜色与对比度</h3>
+  <table>
+    <tr><th>用途</th><th>颜色</th><th>对比度（WCAG）</th></tr>
+    <tr><td>主键底色（上 → 下渐变）</td><td><span class="sw" style="background:#3a5788"></span><code>#3A5788</code> → <span class="sw" style="background:#2b4573"></span><code>#2B4573</code></td><td>白字 7.2 : 1 ～ 9.5 : 1</td></tr>
+    <tr><td>主键底座</td><td><span class="sw" style="background:#1e3152"></span><code>#1E3152</code></td><td>装饰</td></tr>
+    <tr><td>次键底色（上 → 下渐变）</td><td><span class="sw" style="background:#fffdf8"></span><code>#FFFDF8</code> → <span class="sw" style="background:#f1ece1"></span><code>#F1ECE1</code></td><td>墨字 <code>#23211D</code> 13.6 : 1</td></tr>
+    <tr><td>次键描边 / 底座</td><td><span class="sw" style="background:#cfc6b3"></span><code>#CFC6B3</code> / <span class="sw" style="background:#c6bca7"></span><code>#C6BCA7</code></td><td class="warn">与纸色 1.5 : 1，见“已知问题”</td></tr>
+    <tr><td>危险文字</td><td><span class="sw" style="background:#b23a2e"></span><code>#B23A2E</code></td><td>在次键上 5.0 : 1</td></tr>
+    <tr><td>键符文字</td><td><span class="sw" style="background:#5c574e"></span><code>#5C574E</code></td><td>5.4 : 1</td></tr>
+    <tr><td>键盘焦点环</td><td><span class="sw" style="background:#2f4a7a"></span><code>#2F4A7A</code> 实色 3px，外扩 4px</td><td>与纸色 7.8 : 1</td></tr>
+  </table>
+
+  <h3>状态</h3>
+  <table>
+    <tr><th>状态</th><th>画面变化</th></tr>
+    <tr><td>默认</td><td>键帽高出底座 2px，底部有一道底座色和一层柔和投影。</td></tr>
+    <tr><td>悬停</td><td>键帽顶面略微变亮，不位移。</td></tr>
+    <tr><td>按下</td><td>键帽下沉 2px，底座和投影收起；60ms 内完成，松开同样 60ms 回弹。</td></tr>
+    <tr><td>键盘焦点</td><td>钢笔蓝实色焦点环，只在键盘操作时出现（<code>:focus-visible</code>）。</td></tr>
+    <tr><td>加载</td><td>文字改为“提交中”，键符换成三个渐亮的点；按键不可再次触发。</td></tr>
+    <tr><td>禁用</td><td>键帽保持按下的高度、去掉底座，文字变淡，表示“现在按不动”。</td></tr>
+    <tr><td>选中（选项键）</td><td>变成主键颜色并保持按下的高度，表示这个选项已被选中。</td></tr>
+  </table>
+
+  <h3>键符对照</h3>
+  <table>
+    <tr><th>按键</th><th>键符</th><th>对应快捷键</th><th>现状</th></tr>
+    <tr><td>登录 / 注册</td><td><code>return ↵</code></td><td>Enter 提交表单</td><td>已有</td></tr>
+    <tr><td>提交答案 / 下一题</td><td><code>↵</code></td><td>Enter</td><td>已有</td></tr>
+    <tr><td>选项 A–D</td><td>字母本身</td><td>A–D、1–4</td><td>已有</td></tr>
+    <tr><td>上一题 / 下一题</td><td><code>←</code> / <code>→</code></td><td>方向键</td><td class="warn">尚未实现，见“待决定事项”</td></tr>
+  </table>
+  <p class="note">原则：只有真的能用的快捷键才印在按键上。没有快捷键的按键不放键符。</p>
+
+  <h2>3. 可访问性与已知问题</h2>
+  <ul>
+    <li>所有按键文字对比度均达到 WCAG AA（4.5 : 1 以上）；焦点环已从半透明改为实色。</li>
+    <li>键程动画只有 60ms 的位移；系统开启“减少动态效果”时去掉过渡，状态直接切换。</li>
+    <li>键符对读屏软件隐藏，避免读成“提交答案 回车”；快捷键说明仍保留在页面的文字提示中。</li>
+    <li class="warn">次键的描边和底座与纸色对比只有约 1.5 : 1，低于非文字元素 3 : 1 的建议值。按键靠文字和阴影仍可辨认，但视力较弱时边界不够清楚。可选方案：把描边加深到约 <code>#8F8676</code>（达到 3 : 1，但会显得更重），或维持现状并接受这一点。</li>
+  </ul>
+
+  <h2>4. 落地范围与步骤</h2>
+  <ol>
+    <li><b>登录 / 注册页</b>：替换主按钮样式，链接保持文字样式。只改 <code>AuthLayout.vue</code>，不影响其他页面。</li>
+    <li><b>刷题页</b>：提交、翻题、选项 A–D 改为键帽；与刷题页答题纸改版一起进行。</li>
+    <li><b>全站按钮</b>：通过 Element Plus 按钮的样式变量统一替换，不引入新的组件库；表格内的文字按钮、链接不做成键帽。</li>
+  </ol>
+  <p class="note">每一步都会在桌面 1440×900 与手机 390 宽下截图检查，并运行现有前端测试与生产构建。</p>
+
+  <h2>5. 待决定事项</h2>
+  <ul class="decide">
+    <li><span class="box"></span><span><b>是否采用键帽作为平台按键样式。</b></span></li>
+    <li><span class="box"></span><span><b>方向键翻题：</b>新增 ← / → 快捷键并保留键符，或去掉“上一题 / 下一题”上的键符。</span></li>
+    <li><span class="box"></span><span><b>次键描边：</b>加深到满足 3 : 1，或维持当前较轻的效果。</span></li>
+    <li><span class="box"></span><span><b>推广范围：</b>只用于登录与刷题页，或推广到全站按钮。</span></li>
+  </ul>
+
+  <h2>6. 审批意见</h2>
+  <div class="sign">
+    <span>结论</span><span>□ 通过　□ 修改后通过　□ 不通过</span>
+    <span>修改要求</span><span class="line"></span>
+    <span></span><span class="line"></span>
+    <span>审批人</span><span class="line"></span>
+    <span>日期</span><span class="line"></span>
+  </div>
+</main>
+</body>
+</html>

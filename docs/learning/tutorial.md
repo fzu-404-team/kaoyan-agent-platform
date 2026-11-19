@@ -1,10 +1,12 @@
 # 考研 Agent 平台：架构与源码导学
 
+> 2026-11-19 由仓库根目录移至 `docs/learning/`，仅调整相对链接。基线 `369e236` 之后代码已有大量提交（如 HelloAgents 多专家迁移、BM25 检索），本文未按新代码复核；源码行号与流程描述可能过时，以当前代码和[搭建文档](../../考研Agent平台搭建文档.md)为准。
+
 源码核对日期：2026-10-25；Git 基线：`369e236`。核对时已有未提交的 README、搭建文档及资料收集相关文件，本导学保留这些修改；行为判断以当前代码为准。本轮只读源码并编写学习材料，没有启动服务、执行迁移、运行应用测试或调用真实模型。
 
 学习目标：理解每个模块的职责、技术的用途，以及登录、作答、聊天三条操作如何穿过代码。默认你会 Java、Python 基础语法，对 Web 框架不熟悉。全部八个单元已展开，配套问题见 [practice.md](practice.md)，可以逐课学习，无须一次读完。
 
-本文是源码学习说明；业务目标与接口契约仍由[搭建文档](考研Agent平台搭建文档.md)、[RAG契约](docs/rag.md)、[连续聊天契约](docs/conversations.md)和[学情助手契约](docs/assistant-learning-contract.md)维护，运行命令以 [README](README.md) 为准。旧文档某些段落保留历史状态，本文不会把其中的未来目标当作当前能力。
+本文是源码学习说明；业务目标与接口契约仍由[搭建文档](../../考研Agent平台搭建文档.md)、[RAG契约](../../docs/rag.md)、[连续聊天契约](../../docs/conversations.md)和[学情助手契约](../../docs/assistant-learning-contract.md)维护，运行命令以 [README](../../README.md) 为准。旧文档某些段落保留历史状态，本文不会把其中的未来目标当作当前能力。
 
 ## 导航与学习方法
 
@@ -49,11 +51,11 @@ flowchart TD
 
 ### 按入口阅读
 
-1. [前端启动](kaoyan-frontend/src/main.ts)：`createApp(App)`创建Vue应用，再注册Pinia、路由、Element Plus，最后挂载到页面的`#app`。输入是前端代码与配置，输出是浏览器中的界面。
-2. [前端路由](kaoyan-frontend/src/router/index.ts)：根据地址选择页面。例如`/practice`进入刷题首页；`/tasks`进入助手。`App.vue`中的`router-view`是路由页面的显示位置，登录后的公共布局再组织菜单和内容。
-3. [Java入口](kaoyan-B/src/main/java/com/kaoyan/KaoyanApplication.java)：`SpringApplication.run`启动应用；`@MapperScan`发现Mapper接口；`@EnableFeignClients`启用内部HTTP客户端。
-4. [Python入口](kaoyan-agent/main.py)：`create_app`加载配置、资料、检索器和模型适配器，注册FastAPI路由；Uvicorn调用这个工厂并接收HTTP连接。
-5. [前端构建配置](kaoyan-frontend/vite.config.ts)：开发服务默认5173端口，把`/api`代理给Java，默认目标8080。Python默认入口是8001。端口可配置，Vite开发代理不等于生产环境已经配置好反向代理。
+1. [前端启动](../../kaoyan-frontend/src/main.ts)：`createApp(App)`创建Vue应用，再注册Pinia、路由、Element Plus，最后挂载到页面的`#app`。输入是前端代码与配置，输出是浏览器中的界面。
+2. [前端路由](../../kaoyan-frontend/src/router/index.ts)：根据地址选择页面。例如`/practice`进入刷题首页；`/tasks`进入助手。`App.vue`中的`router-view`是路由页面的显示位置，登录后的公共布局再组织菜单和内容。
+3. [Java入口](../../kaoyan-B/src/main/java/com/kaoyan/KaoyanApplication.java)：`SpringApplication.run`启动应用；`@MapperScan`发现Mapper接口；`@EnableFeignClients`启用内部HTTP客户端。
+4. [Python入口](../../kaoyan-agent/main.py)：`create_app`加载配置、资料、检索器和模型适配器，注册FastAPI路由；Uvicorn调用这个工厂并接收HTTP连接。
+5. [前端构建配置](../../kaoyan-frontend/vite.config.ts)：开发服务默认5173端口，把`/api`代理给Java，默认目标8080。Python默认入口是8001。端口可配置，Vite开发代理不等于生产环境已经配置好反向代理。
 
 ### 文件夹分别装什么
 
@@ -86,9 +88,9 @@ flowchart TD
 - 原有推荐和批次总结：Java先保存任务，再同步等待Python结果，最后保存终态。
 - 连续聊天：发送请求先得到任务编号；Java后台生成，浏览器另行订阅SSE事件获取进度。
 
-代码默认关闭模型，知识检索默认`lexical`。这只是[配置默认值](kaoyan-agent/config.py)，本次没有读取真实`.env`或探测运行中的服务。即使模型关闭，已有规则筛选和来源摘要仍能工作；AI笔记生成会明确不可用。
+代码默认关闭模型，知识检索默认`lexical`。这只是[配置默认值](../../kaoyan-agent/config.py)，本次没有读取真实`.env`或探测运行中的服务。即使模型关闭，已有规则筛选和来源摘要仍能工作；AI笔记生成会明确不可用。
 
-选读：[三端依赖](kaoyan-frontend/package.json)、[Java依赖](kaoyan-B/pom.xml)、[Python依赖](kaoyan-agent/requirements.txt)。暂缓详细的认证、判分和聊天生命周期，分别在03、05、07单元展开。
+选读：[三端依赖](../../kaoyan-frontend/package.json)、[Java依赖](../../kaoyan-B/pom.xml)、[Python依赖](../../kaoyan-agent/requirements.txt)。暂缓详细的认证、判分和聊天生命周期，分别在03、05、07单元展开。
 
 复述任务：不用看图，说出“提交答案”和“AI问答”分别经过哪些应用，以及最终是谁保存记录。检查题见[练习01](practice.md#unit-01)。
 
@@ -106,11 +108,11 @@ Vue的“响应式”是指数据变化后，引用这些数据的界面会更�
 
 ### 按调用顺序阅读
 
-1. [Login.vue](kaoyan-frontend/src/views/Login.vue)的模板把输入框绑定到`form`，把按钮绑定到`onSubmit`。`ref`保存单个响应式值，`reactive`组织表单对象；`onSubmit`先校验表单，再调用Store，并用`finally`结束加载状态。
-2. [stores/user.ts](kaoyan-frontend/src/stores/user.ts)的`login`调用API，缓存`accessToken`，再请求本人信息；`isLoggedIn`和`isAdmin`是根据状态计算出的界面判断。Pinia让布局、路由和页面共享这些状态。
-3. [api/auth.ts](kaoyan-frontend/src/api/auth.ts)只描述路径和输入输出，`login`向`/auth/login`发POST。路径前缀由统一请求配置决定；它不重复实现按钮逻辑。
-4. [api/request.ts](kaoyan-frontend/src/api/request.ts)统一设置请求地址、超时和Bearer令牌。响应拦截器将成功的`{code,message,data}`解包成`data`，所以页面拿到的通常已经是业务数据。
-5. [router/index.ts](kaoyan-frontend/src/router/index.ts)负责页面选择和进入前检查；[DefaultLayout.vue](kaoyan-frontend/src/layouts/DefaultLayout.vue)负责菜单、头部、退出及助手显示。实际权限还需要Java检查。
+1. [Login.vue](../../kaoyan-frontend/src/views/Login.vue)的模板把输入框绑定到`form`，把按钮绑定到`onSubmit`。`ref`保存单个响应式值，`reactive`组织表单对象；`onSubmit`先校验表单，再调用Store，并用`finally`结束加载状态。
+2. [stores/user.ts](../../kaoyan-frontend/src/stores/user.ts)的`login`调用API，缓存`accessToken`，再请求本人信息；`isLoggedIn`和`isAdmin`是根据状态计算出的界面判断。Pinia让布局、路由和页面共享这些状态。
+3. [api/auth.ts](../../kaoyan-frontend/src/api/auth.ts)只描述路径和输入输出，`login`向`/auth/login`发POST。路径前缀由统一请求配置决定；它不重复实现按钮逻辑。
+4. [api/request.ts](../../kaoyan-frontend/src/api/request.ts)统一设置请求地址、超时和Bearer令牌。响应拦截器将成功的`{code,message,data}`解包成`data`，所以页面拿到的通常已经是业务数据。
+5. [router/index.ts](../../kaoyan-frontend/src/router/index.ts)负责页面选择和进入前检查；[DefaultLayout.vue](../../kaoyan-frontend/src/layouts/DefaultLayout.vue)负责菜单、头部、退出及助手显示。实际权限还需要Java检查。
 
 账号切换后，旧请求即使晚到也不能更新新账号界面。`request.ts`在请求时记住令牌，响应时比较当前令牌；聊天组件还有自己的请求代次校验，详见07单元。
 
@@ -153,7 +155,7 @@ Vite配置中的`@`映射到`src`，所以`@/api/auth`只是更短的源码导�
 
 成功时Store保存令牌、读取本人信息，页面跳转。普通请求401会清除当前会话并转登录；403提示无权访问。同步请求超时只代表浏览器停止等待，任务可能已在后端创建，页面提示先查看记录。表单校验用于尽早反馈，服务端仍须独立校验。
 
-选读：[前端类型](kaoyan-frontend/src/types/api.ts)、[统计页](kaoyan-frontend/src/views/Statistics.vue)。暂缓SSE、Markdown及笔记差异，归07单元。
+选读：[前端类型](../../kaoyan-frontend/src/types/api.ts)、[统计页](../../kaoyan-frontend/src/views/Statistics.vue)。暂缓SSE、Markdown及笔记差异，归07单元。
 
 复述任务：解释为什么一个登录操作要经过页面、Store和API封装，以及它们各自的输入输出。检查题见[练习02](practice.md#unit-02)。
 
@@ -171,12 +173,12 @@ Vite配置中的`@`映射到`src`，所以`@/api/auth`只是更短的源码导�
 
 ### 按调用顺序阅读
 
-1. [AuthController.login](kaoyan-B/src/main/java/com/kaoyan/controller/AuthController.java)接收`LoginRequest`，`@Valid`触发参数校验，再调用`UserService.login`。`@RestController`表示方法结果序列化为HTTP响应；`@PostMapping`将路径绑定到方法。
-2. [UserServiceImpl.login](kaoyan-B/src/main/java/com/kaoyan/service/impl/UserServiceImpl.java)查用户、调用`passwordEncoder.matches`比较原始密码与BCrypt哈希、检查账号是否启用。BCrypt是单向密码哈希，登录时不把保存值“解密”。
-3. [SecurityConfig.passwordEncoder](kaoyan-B/src/main/java/com/kaoyan/config/SecurityConfig.java)提供BCrypt组件；[JwtService.generateAccess](kaoyan-B/src/main/java/com/kaoyan/security/JwtService.java)签发令牌，包含用户编号、类型、唯一编号`jti`和有效期。
-4. [JwtAuthenticationFilter.doFilterInternal](kaoyan-B/src/main/java/com/kaoyan/security/JwtAuthenticationFilter.java)处理后续请求：提取Bearer令牌，验证签名、签发者、过期时间及access类型，并向Redis检查是否撤销。然后重新读取账号，使用数据库中的当前状态和角色，创建Spring Security认证对象。
-5. [UserContext](kaoyan-B/src/main/java/com/kaoyan/security/UserContext.java)从安全上下文读取当前用户编号；Controller把它传给Service。业务不会因为请求正文写了别人的`userId`就信任该归属。
-6. [SecurityConfig.filterChain](kaoyan-B/src/main/java/com/kaoyan/config/SecurityConfig.java)配置公开认证入口、管理接口角色要求和其他接口认证要求。资源Service还需检查账号归属。
+1. [AuthController.login](../../kaoyan-B/src/main/java/com/kaoyan/controller/AuthController.java)接收`LoginRequest`，`@Valid`触发参数校验，再调用`UserService.login`。`@RestController`表示方法结果序列化为HTTP响应；`@PostMapping`将路径绑定到方法。
+2. [UserServiceImpl.login](../../kaoyan-B/src/main/java/com/kaoyan/service/impl/UserServiceImpl.java)查用户、调用`passwordEncoder.matches`比较原始密码与BCrypt哈希、检查账号是否启用。BCrypt是单向密码哈希，登录时不把保存值“解密”。
+3. [SecurityConfig.passwordEncoder](../../kaoyan-B/src/main/java/com/kaoyan/config/SecurityConfig.java)提供BCrypt组件；[JwtService.generateAccess](../../kaoyan-B/src/main/java/com/kaoyan/security/JwtService.java)签发令牌，包含用户编号、类型、唯一编号`jti`和有效期。
+4. [JwtAuthenticationFilter.doFilterInternal](../../kaoyan-B/src/main/java/com/kaoyan/security/JwtAuthenticationFilter.java)处理后续请求：提取Bearer令牌，验证签名、签发者、过期时间及access类型，并向Redis检查是否撤销。然后重新读取账号，使用数据库中的当前状态和角色，创建Spring Security认证对象。
+5. [UserContext](../../kaoyan-B/src/main/java/com/kaoyan/security/UserContext.java)从安全上下文读取当前用户编号；Controller把它传给Service。业务不会因为请求正文写了别人的`userId`就信任该归属。
+6. [SecurityConfig.filterChain](../../kaoyan-B/src/main/java/com/kaoyan/config/SecurityConfig.java)配置公开认证入口、管理接口角色要求和其他接口认证要求。资源Service还需检查账号归属。
 
 过滤器是进入Controller前的一道处理步骤。Spring Security通过过滤器链统一保护请求；Pinia或前端路由守卫只控制界面体验。
 
@@ -198,7 +200,7 @@ Vite配置中的`@`映射到`src`，所以`@/api/auth`只是更短的源码导�
 
 `User.passwordHash`使用`@JsonIgnore`，注册也主动清掉返回对象中的哈希。但`/users/me`和注册仍存在返回User实体的实现，因此不能概括成“所有账号响应都是专用白名单DTO”；源码学习要同时看序列化注解与真正返回字段。
 
-选读：[JwtServiceTest](kaoyan-B/src/test/java/com/kaoyan/security/JwtServiceTest.java)、[JwtAuthenticationFilterTest](kaoyan-B/src/test/java/com/kaoyan/security/JwtAuthenticationFilterTest.java)。暂缓后台生成中对令牌及隐私的再次检查，归07单元。
+选读：[JwtServiceTest](../../kaoyan-B/src/test/java/com/kaoyan/security/JwtServiceTest.java)、[JwtAuthenticationFilterTest](../../kaoyan-B/src/test/java/com/kaoyan/security/JwtAuthenticationFilterTest.java)。暂缓后台生成中对令牌及隐私的再次检查，归07单元。
 
 复述任务：从“收到accessToken”开始，解释下一次请求怎样变成可信的当前用户；再解释退出改变了什么。检查题见[练习03](practice.md#unit-03)。
 
@@ -214,11 +216,11 @@ Vite配置中的`@`映射到`src`，所以`@/api/auth`只是更短的源码导�
 
 ### 逐层阅读
 
-1. [Profile.vue](kaoyan-frontend/src/views/Profile.vue)组织表单；[api/user.ts](kaoyan-frontend/src/api/user.ts)发送更新请求。它们提供要修改的字段，不决定数据库记录的归属。
-2. [ProfileRequest](kaoyan-B/src/main/java/com/kaoyan/dto/request/ProfileRequest.java)描述允许接收的档案字段；[UserController.updateProfile](kaoyan-B/src/main/java/com/kaoyan/controller/UserController.java)从`UserContext.currentUserId()`取归属并调用Service。DTO是跨接口传递数据的对象；字段是否有长度、格式约束还要逐项看注解与Service，不能因写了`@Valid`就推断全部校验完备。
-3. [UserServiceImpl.updateProfile](kaoyan-B/src/main/java/com/kaoyan/service/impl/UserServiceImpl.java)查本人记录、更新字段。Service承担业务规则和事务，Controller不应直接拼SQL。
-4. [UserMapper](kaoyan-B/src/main/java/com/kaoyan/mapper/UserMapper.java)配合[User实体](kaoyan-B/src/main/java/com/kaoyan/entity/User.java)映射表和字段。MyBatis-Plus为常见查询、更新和分页减少重复SQL；复杂查询仍有Mapper注解或XML。
-5. [Result](kaoyan-B/src/main/java/com/kaoyan/common/Result.java)将结果包装为`{code,message,data}`；[GlobalExceptionHandler](kaoyan-B/src/main/java/com/kaoyan/common/GlobalExceptionHandler.java)将业务异常、参数错误等转换为统一错误响应，前端拦截器据此显示反馈。
+1. [Profile.vue](../../kaoyan-frontend/src/views/Profile.vue)组织表单；[api/user.ts](../../kaoyan-frontend/src/api/user.ts)发送更新请求。它们提供要修改的字段，不决定数据库记录的归属。
+2. [ProfileRequest](../../kaoyan-B/src/main/java/com/kaoyan/dto/request/ProfileRequest.java)描述允许接收的档案字段；[UserController.updateProfile](../../kaoyan-B/src/main/java/com/kaoyan/controller/UserController.java)从`UserContext.currentUserId()`取归属并调用Service。DTO是跨接口传递数据的对象；字段是否有长度、格式约束还要逐项看注解与Service，不能因写了`@Valid`就推断全部校验完备。
+3. [UserServiceImpl.updateProfile](../../kaoyan-B/src/main/java/com/kaoyan/service/impl/UserServiceImpl.java)查本人记录、更新字段。Service承担业务规则和事务，Controller不应直接拼SQL。
+4. [UserMapper](../../kaoyan-B/src/main/java/com/kaoyan/mapper/UserMapper.java)配合[User实体](../../kaoyan-B/src/main/java/com/kaoyan/entity/User.java)映射表和字段。MyBatis-Plus为常见查询、更新和分页减少重复SQL；复杂查询仍有Mapper注解或XML。
+5. [Result](../../kaoyan-B/src/main/java/com/kaoyan/common/Result.java)将结果包装为`{code,message,data}`；[GlobalExceptionHandler](../../kaoyan-B/src/main/java/com/kaoyan/common/GlobalExceptionHandler.java)将业务异常、参数错误等转换为统一错误响应，前端拦截器据此显示反馈。
 
 Java内部是方法调用，Java与浏览器、Python之间是HTTP请求。JSON序列化是将Java对象转成网络文本，反序列化则把收到的JSON转换为对象。Java使用Jackson处理这些转换。
 
@@ -256,9 +258,9 @@ Spring Boot负责自动配置与组件装配，Spring MVC负责将HTTP映射到C
 
 事务把多次数据库修改组织成一次成功或回滚。例如作答成功、错题标记和统计不能随意各存一半。`@Transactional`用于声明事务，聊天也使用`TransactionTemplate`显式划分事务。等待模型期间不应持有数据库长事务，任务采用“短事务预占 → 外部调用 → 短事务保存结果”。
 
-MyBatis-Plus不是唯一持久化方式：[ChatRepository](kaoyan-B/src/main/java/com/kaoyan/service/ChatRepository.java)使用Spring的JdbcTemplate执行参数化SQL、读取JSON和分页。它与Mapper都访问业务数据库；Python没有因此获得业务库连接权。
+MyBatis-Plus不是唯一持久化方式：[ChatRepository](../../kaoyan-B/src/main/java/com/kaoyan/service/ChatRepository.java)使用Spring的JdbcTemplate执行参数化SQL、读取JSON和分页。它与Mapper都访问业务数据库；Python没有因此获得业务库连接权。
 
-选读：[MybatisPlusConfig](kaoyan-B/src/main/java/com/kaoyan/config/MybatisPlusConfig.java)、[QuestionServiceImpl](kaoyan-B/src/main/java/com/kaoyan/service/impl/QuestionServiceImpl.java)、[DocumentServiceImpl](kaoyan-B/src/main/java/com/kaoyan/service/impl/DocumentServiceImpl.java)。题目版本不匹配等业务冲突返回409，不应被页面解释成已保存。
+选读：[MybatisPlusConfig](../../kaoyan-B/src/main/java/com/kaoyan/config/MybatisPlusConfig.java)、[QuestionServiceImpl](../../kaoyan-B/src/main/java/com/kaoyan/service/impl/QuestionServiceImpl.java)、[DocumentServiceImpl](../../kaoyan-B/src/main/java/com/kaoyan/service/impl/DocumentServiceImpl.java)。题目版本不匹配等业务冲突返回409，不应被页面解释成已保存。
 
 复述任务：用修改档案的例子分别说明DTO、实体、Controller、Service、Mapper的输入输出。检查题见[练习04](practice.md#unit-04)。
 
@@ -276,25 +278,25 @@ MyBatis-Plus不是唯一持久化方式：[ChatRepository](kaoyan-B/src/main/jav
 
 ### 按数据变化阅读
 
-1. [PracticeHome.vue](kaoyan-frontend/src/views/PracticeHome.vue)通过[api/practice.ts.startSession](kaoyan-frontend/src/api/practice.ts)发送科目、数量等条件；[PracticeController.start](kaoyan-B/src/main/java/com/kaoyan/controller/PracticeController.java)带当前账号调用`startSession`。
-2. [PracticeServiceImpl.startSession](kaoyan-B/src/main/java/com/kaoyan/service/impl/PracticeServiceImpl.java)限制1—50题，支持普通、本人错题、本人收藏来源。筛选可练习题目，为每道题创建`practice_record`，写入顺序、`gradingStatus=valid`及`question_snapshot`；零候选不创建空批次。`snapshotAtCreation`区分新固定快照与旧批次兼容行为。
-3. [PracticeSession.vue](kaoyan-frontend/src/views/PracticeSession.vue)的`readRecords → navigate/findNext`按记录顺序寻找未答题，再请求学生题目详情。未提交前的详情通过[StudentQuestionVO](kaoyan-B/src/main/java/com/kaoyan/dto/response/StudentQuestionVO.java)隐藏标准答案和解析。
+1. [PracticeHome.vue](../../kaoyan-frontend/src/views/PracticeHome.vue)通过[api/practice.ts.startSession](../../kaoyan-frontend/src/api/practice.ts)发送科目、数量等条件；[PracticeController.start](../../kaoyan-B/src/main/java/com/kaoyan/controller/PracticeController.java)带当前账号调用`startSession`。
+2. [PracticeServiceImpl.startSession](../../kaoyan-B/src/main/java/com/kaoyan/service/impl/PracticeServiceImpl.java)限制1—50题，支持普通、本人错题、本人收藏来源。筛选可练习题目，为每道题创建`practice_record`，写入顺序、`gradingStatus=valid`及`question_snapshot`；零候选不创建空批次。`snapshotAtCreation`区分新固定快照与旧批次兼容行为。
+3. [PracticeSession.vue](../../kaoyan-frontend/src/views/PracticeSession.vue)的`readRecords → navigate/findNext`按记录顺序寻找未答题，再请求学生题目详情。未提交前的详情通过[StudentQuestionVO](../../kaoyan-B/src/main/java/com/kaoyan/dto/response/StudentQuestionVO.java)隐藏标准答案和解析。
 4. 页面的`submit`调用`answerQuestion`，正文只有`questionId`与`answer`；Controller把当前账号、路径批次号和答案交给`PracticeServiceImpl.answer`。
 5. `answer`查本人该批次记录，检查未答、题目仍可练习及判分配置；新批次从创建快照提取标准答案，旧未答批次保留代码中的兼容路径。将用户选项规范成A—D后比较，计算`isCorrect`。
-6. Service用“仍未答且valid”的更新条件保存结果，失败则409；错答调用`markWrong`，随后调用`studyStatService.accumulate`。这些操作在作答事务内完成。返回[AnswerVO](kaoyan-B/src/main/java/com/kaoyan/dto/response/AnswerVO.java)，包含服务器判分及本次允许查看的答案和解析。
+6. Service用“仍未答且valid”的更新条件保存结果，失败则409；错答调用`markWrong`，随后调用`studyStatService.accumulate`。这些操作在作答事务内完成。返回[AnswerVO](../../kaoyan-B/src/main/java/com/kaoyan/dto/response/AnswerVO.java)，包含服务器判分及本次允许查看的答案和解析。
 7. 页面使用服务器的`isCorrect`、`userAnswer`和反馈对象显示结果，不再自行比较标准答案。选择B但尚未点提交，不会保存正式作答或计入错误。
 
 ### 历史回顾与统计
 
-[QuestionHistoryView](kaoyan-B/src/main/java/com/kaoyan/service/QuestionHistoryView.java)和历史展示DTO区分未答、可用、部分字段缺失、快照缺失及不可用。已答的历史答案和解析来自保存的快照，不能拿现行题目补造旧依据；手动收藏不等于已经答过，也不会因此开放标准答案。
+[QuestionHistoryView](../../kaoyan-B/src/main/java/com/kaoyan/service/QuestionHistoryView.java)和历史展示DTO区分未答、可用、部分字段缺失、快照缺失及不可用。已答的历史答案和解析来自保存的快照，不能拿现行题目补造旧依据；手动收藏不等于已经答过，也不会因此开放标准答案。
 
-[StudyStatServiceImpl](kaoyan-B/src/main/java/com/kaoyan/service/impl/StudyStatServiceImpl.java)除了维护统计，还从有效、已判分的作答计算查询结果。学情查询默认按上海日期近30天统计，区分作答次数、去重题数和当前错题本题数；错题本题数不等于这段时间答错次数。未记录的学习时长、提示辅助和独立作答不推算。
+[StudyStatServiceImpl](../../kaoyan-B/src/main/java/com/kaoyan/service/impl/StudyStatServiceImpl.java)除了维护统计，还从有效、已判分的作答计算查询结果。学情查询默认按上海日期近30天统计，区分作答次数、去重题数和当前错题本题数；错题本题数不等于这段时间答错次数。未记录的学习时长、提示辅助和独立作答不推算。
 
 ### AI总结是另一条调用链
 
 **`triggerAiSummary` → `PracticeController.aiSummary` → `TaskServiceImpl.submit(PRACTICE_SUMMARY)` → 读取本人已判分快照 → Feign调用Python → 保存Task → 页面显示。**
 
-[TaskServiceImpl.buildRequest](kaoyan-B/src/main/java/com/kaoyan/service/impl/TaskServiceImpl.java)在创建任务前检查：有效项目全部已答、快照非空、最多50题。缺历史快照返回409，不占本次任务额度，不用新题补旧快照。Python接收的是已判分副本；模型只可解释，不能重新决定正误。
+[TaskServiceImpl.buildRequest](../../kaoyan-B/src/main/java/com/kaoyan/service/impl/TaskServiceImpl.java)在创建任务前检查：有效项目全部已答、快照非空、最多50题。缺历史快照返回409，不占本次任务额度，不用新题补旧快照。Python接收的是已判分副本；模型只可解释，不能重新决定正误。
 
 ### 必须看清的失败与当前缺口
 
@@ -309,7 +311,7 @@ MyBatis-Plus不是唯一持久化方式：[ChatRepository](kaoyan-B/src/main/jav
 
 当前已具备新批次创建快照和上述同条记录保护，但完整clientRequestId重放、不同作答并发统计仍不能据此声称全部闭环。服务端草稿、审核提示辅助标记、正式结束状态等仍待建设；页面`finished`变量不等于数据库中已有正式批次状态。当前放弃接口还会删除批次记录，与未来保留已答记录的正式结束设计不同。
 
-选读：[PracticeAnswerSafetyTest](kaoyan-B/src/test/java/com/kaoyan/PracticeAnswerSafetyTest.java)、[前端作答安全检查](kaoyan-frontend/tests/practice-answer-safety.spec.ts)、[恢复检查](kaoyan-frontend/tests/practice-recovery.spec.ts)。暂缓模型总结内部实现，归06单元。
+选读：[PracticeAnswerSafetyTest](../../kaoyan-B/src/test/java/com/kaoyan/PracticeAnswerSafetyTest.java)、[前端作答安全检查](../../kaoyan-frontend/tests/practice-answer-safety.spec.ts)、[恢复检查](../../kaoyan-frontend/tests/practice-recovery.spec.ts)。暂缓模型总结内部实现，归06单元。
 
 复述任务：如果底层题目内容日后发生变化，分别解释新批次判分、历史回顾和当前题目可用性检查读取什么。这里讨论快照保护的边界，不表示当前管理API允许原地修改已发布题。检查题见[练习05](practice.md#unit-05)。
 
@@ -327,16 +329,16 @@ RAG是“检索增强生成”：先找到与问题有关的资料，再把问�
 
 ### 从HTTP进入领域代码
 
-1. [AgentFeignClient.chat](kaoyan-B/src/main/java/com/kaoyan/feign/AgentFeignClient.java)发送`AgentRequest`和`X-Internal-Key`，目标是`POST /internal/rag/chat`。这个内部凭证用于服务之间认证，与学生JWT职责不同。
-2. [main.py.create_app](kaoyan-agent/main.py)装配`Settings → Corpus → Retriever → ModelClient → Workflows`。FastAPI负责路由和依赖认证，Uvicorn负责运行HTTP服务。
-3. [schemas.py](kaoyan-agent/schemas.py)用Pydantic定义`ChatRequest`、`Profile`、`QuestionSnapshot`及输出模型；`StrictModel`拒绝额外字段，`task_fields`检查任务与字段是否匹配。请求错误422，内部凭证错误401。
-4. [Workflows.run/_run](kaoyan-agent/workflows.py)按明确任务类型调用`qa`、`schools`或`summary`；只有`CHAT`才需识别意图。固定工作流意味着分支由代码约束，模型不能自行增加任意SQL、文件或网络工具。
+1. [AgentFeignClient.chat](../../kaoyan-B/src/main/java/com/kaoyan/feign/AgentFeignClient.java)发送`AgentRequest`和`X-Internal-Key`，目标是`POST /internal/rag/chat`。这个内部凭证用于服务之间认证，与学生JWT职责不同。
+2. [main.py.create_app](../../kaoyan-agent/main.py)装配`Settings → Corpus → Retriever → ModelClient → Workflows`。FastAPI负责路由和依赖认证，Uvicorn负责运行HTTP服务。
+3. [schemas.py](../../kaoyan-agent/schemas.py)用Pydantic定义`ChatRequest`、`Profile`、`QuestionSnapshot`及输出模型；`StrictModel`拒绝额外字段，`task_fields`检查任务与字段是否匹配。请求错误422，内部凭证错误401。
+4. [Workflows.run/_run](../../kaoyan-agent/workflows.py)按明确任务类型调用`qa`、`schools`或`summary`；只有`CHAT`才需识别意图。固定工作流意味着分支由代码约束，模型不能自行增加任意SQL、文件或网络工具。
 5. `qa`先用科目提示检索，无结果时可去掉弱科目提示重查。无资料返回`UNSUPPORTED`；有资料先构造确定性来源摘要，再判断是否允许调用模型。
-6. Java的[validateResponse](kaoyan-B/src/main/java/com/kaoyan/service/impl/TaskServiceImpl.java)和[ReferenceSourcePolicy](kaoyan-B/src/main/java/com/kaoyan/service/ReferenceSourcePolicy.java)继续检查任务编号、结构、版本、候选及来源。通过后才保存结果。
+6. Java的[validateResponse](../../kaoyan-B/src/main/java/com/kaoyan/service/impl/TaskServiceImpl.java)和[ReferenceSourcePolicy](../../kaoyan-B/src/main/java/com/kaoyan/service/ReferenceSourcePolicy.java)继续检查任务编号、结构、版本、候选及来源。通过后才保存结果。
 
 ### 资料如何变成可检索内容
 
-[retrieval.py.Corpus](kaoyan-agent/retrieval.py)读取配置指定的JSON语料，检查资料领域、核验状态、来源定位、版本和许可字段，再用[source_policy.py](kaoyan-agent/source_policy.py)检查来源域名。规范化JSON的SHA256摘要生成`releaseId`，从而将结果绑定到资料版本。
+[retrieval.py.Corpus](../../kaoyan-agent/retrieval.py)读取配置指定的JSON语料，检查资料领域、核验状态、来源定位、版本和许可字段，再用[source_policy.py](../../kaoyan-agent/source_policy.py)检查来源域名。规范化JSON的SHA256摘要生成`releaseId`，从而将结果绑定到资料版本。
 
 代码能检查`verified`等状态和元数据是否符合契约，但不能凭这些字段证明全文正确或许可有效；来源与内容仍需真实核对和审核。仓库基线语料与本机实际加载语料也可能不同，应以配置和对应记录区分。
 
@@ -351,13 +353,13 @@ RAG是“检索增强生成”：先找到与问题有关的资料，再把问�
 
 Embedding模型负责将文本转换为数字向量；生成式大模型负责输出回答，两者职责不同。FastEmbed默认使用配置中的中文模型`BAAI/bge-small-zh-v1.5`。Qdrant既支持本地持久模式，也有远程配置；本地模式按项目运行约束单进程使用。
 
-[ingest.py](kaoyan-agent/ingest.py)的`VectorIndex.build`用于建立资料索引，集合绑定语料与模型，全部写入后再发布就绪标记；旧集合保留。它不是Java业务表迁移，也不会把MySQL整库交给Python。
+[ingest.py](../../kaoyan-agent/ingest.py)的`VectorIndex.build`用于建立资料索引，集合绑定语料与模型，全部写入后再发布就绪标记；旧集合保留。它不是Java业务表迁移，也不会把MySQL整库交给Python。
 
 ### 模型、提示词与输出校验
 
-[llm_client.py.ModelClient](kaoyan-agent/llm_client.py)使用LangChain的`ChatPromptTemplate`和`ChatOpenAI`，通过OpenAI兼容客户端访问配置的模型服务。“兼容”描述API形状，不限定实际供应商。
+[llm_client.py.ModelClient](../../kaoyan-agent/llm_client.py)使用LangChain的`ChatPromptTemplate`和`ChatOpenAI`，通过OpenAI兼容客户端访问配置的模型服务。“兼容”描述API形状，不限定实际供应商。
 
-提示词在[prompts目录](kaoyan-agent/prompts)；[prompts.py.get](kaoyan-agent/prompts.py)加载模板。当前同步工作流使用知识问答、院校解释、练习总结和意图模板；文件存在不代表所有模板都被主链使用。用户问题、历史和资料作为数据传入，不获得修改系统规则的权力。
+提示词在[prompts目录](../../kaoyan-agent/prompts)；[prompts.py.get](../../kaoyan-agent/prompts.py)加载模板。当前同步工作流使用知识问答、院校解释、练习总结和意图模板；文件存在不代表所有模板都被主链使用。用户问题、历史和资料作为数据传入，不获得修改系统规则的权力。
 
 模型先输出符合约定的JSON，再由Pydantic校验；知识回答的来源编号只能取自本次检索。`grounding.py.verify`进一步比较结论和所引原文的词项、数字等，给出支持度。知识回答不支持时保留来源摘要；部分支持保留提示。这是词项核对基线，无法可靠识别所有否定、矛盾和同义表达，不等于事实核查已经完成。
 
@@ -388,7 +390,7 @@ Embedding模型负责将文本转换为数字向量；生成式大模型负责�
 
 注意两组同名状态：`status=SUCCESS`是处理成功，`result.outcome=COMPLETED/NEEDS_INPUT/UNSUPPORTED`才表示领域结果；HTTP200不等于已经找到可回答依据。`explanationMode=rules/ai/fallback`表示解释来源方式。
 
-选读：[test_quality.py](kaoyan-agent/tests/test_quality.py)、[test_workflows.py](kaoyan-agent/tests/test_workflows.py)、[共享来源清单](config/reference-hosts.json)。暂缓聊天历史、学情授权和题目操作，归07单元。
+选读：[test_quality.py](../../kaoyan-agent/tests/test_quality.py)、[test_workflows.py](../../kaoyan-agent/tests/test_workflows.py)、[共享来源清单](../../config/reference-hosts.json)。暂缓聊天历史、学情授权和题目操作，归07单元。
 
 复述任务：假设模型输出一个并未检索到的来源编号，解释哪些层会校验，以及原有规则结果为什么还能保留。检查题见[练习06](practice.md#unit-06)。
 
@@ -406,8 +408,8 @@ Embedding模型负责将文本转换为数字向量；生成式大模型负责�
 
 ### 先追发送，再追订阅
 
-1. [ChatAssistant.vue.send](kaoyan-frontend/src/views/ChatAssistant.vue)整理问题、`clientRequestId`、可选笔记和页面上下文，经[api/conversation.ts.sendMessage](kaoyan-frontend/src/api/conversation.ts)发出。必要时先创建会话。
-2. [ConversationController.send](kaoyan-B/src/main/java/com/kaoyan/controller/ConversationController.java)带当前账号调用[ConversationService.send](kaoyan-B/src/main/java/com/kaoyan/service/ConversationService.java)。Service检查归属、请求编号、会话是否空闲、所选笔记版本，在短事务中保存消息并`reserve`一个RUNNING任务及生成记录。
+1. [ChatAssistant.vue.send](../../kaoyan-frontend/src/views/ChatAssistant.vue)整理问题、`clientRequestId`、可选笔记和页面上下文，经[api/conversation.ts.sendMessage](../../kaoyan-frontend/src/api/conversation.ts)发出。必要时先创建会话。
+2. [ConversationController.send](../../kaoyan-B/src/main/java/com/kaoyan/controller/ConversationController.java)带当前账号调用[ConversationService.send](../../kaoyan-B/src/main/java/com/kaoyan/service/ConversationService.java)。Service检查归属、请求编号、会话是否空闲、所选笔记版本，在短事务中保存消息并`reserve`一个RUNNING任务及生成记录。
 3. `dispatch`把工作交给有界线程池，安排超时保护，再让发送请求返回编号。相同请求编号和内容会重放原编号，不再派发；同编号不同内容409。同会话有活动生成时拒绝新问题。
 4. 浏览器调用`subscribeGeneration`，GET对应任务的`/stream`；Java的`subscribe`先发`snapshot`，再注册后续事件监听。**订阅只观察已创建任务，不创建生成，也不消耗新的模型次数。**
 
@@ -415,8 +417,8 @@ Embedding模型负责将文本转换为数字向量；生成式大模型负责�
 
 5. `ConversationService.generate`先检查当前授权，向Python的`/internal/rag/conversation/plan`发请求；Python的`ConversationWorkflow.plan → resolve`使用本地解析或允许的模型解析，产出受限制的计划。
 6. Java执行`validatePlan → resolveTargets → AssistantLearningService.read`：根据本人范围和计划读取错题、收藏、统计、公开题目等。它决定最终对象范围，不直接相信模型提供的编号或写操作。
-7. Java再次检查授权，把必要上下文与`preparedPlan`发送到`/internal/rag/conversation/stream`。Python的[ConversationWorkflow](kaoyan-agent/conversation.py)使用`RunnableLambda | RunnableBranch`进入普通回答、笔记建议或学情分支，复用已准备计划。
-8. 模型启用且授权允许时，[ModelClient](kaoyan-agent/llm_client.py)读取真实SDK流，将部分JSON中的允许正文投影成`delta`；路由结果和内部推理不展示。模型关闭时返回规则结果，不把完整文本逐字切开冒充模型流。
+7. Java再次检查授权，把必要上下文与`preparedPlan`发送到`/internal/rag/conversation/stream`。Python的[ConversationWorkflow](../../kaoyan-agent/conversation.py)使用`RunnableLambda | RunnableBranch`进入普通回答、笔记建议或学情分支，复用已准备计划。
+8. 模型启用且授权允许时，[ModelClient](../../kaoyan-agent/llm_client.py)读取真实SDK流，将部分JSON中的允许正文投影成`delta`；路由结果和内部推理不展示。模型关闭时返回规则结果，不把完整文本逐字切开冒充模型流。
 9. Python最终发送`result`；Java复核结构、来源、会话条件及笔记建议。`terminate`用条件更新竞争唯一终态，保存数据库后才广播`completed`；失败和取消也会保存状态并清理活动占用、草稿及连接。
 
 LangChain在这里提供模板、可组合分支、检索器和工具包装；实际调用路线受代码控制。LangGraph虽为依赖树的一部分，当前并未承担另一套持久会话或自主Agent循环。聊天历史保存在Java的MySQL表中，由Java选择最近3轮成功历史；失败、取消和未完成草稿不充当下一轮正式历史。
@@ -439,7 +441,7 @@ LangChain在这里提供模板、可组合分支、检索器和工具包装；�
 
 ### 学情、主题检索与受控操作
 
-[AssistantLearningService](kaoyan-B/src/main/java/com/kaoyan/service/AssistantLearningService.java)负责本人学习记录读取及操作记录；[QuestionSearchService](kaoyan-B/src/main/java/com/kaoyan/service/QuestionSearchService.java)提供Java允许的公开题目副本和候选集合；Python的[QuestionIndex](kaoyan-agent/question_search.py)做标签匹配及本地向量匹配，返回编号、版本、方法和分数。
+[AssistantLearningService](../../kaoyan-B/src/main/java/com/kaoyan/service/AssistantLearningService.java)负责本人学习记录读取及操作记录；[QuestionSearchService](../../kaoyan-B/src/main/java/com/kaoyan/service/QuestionSearchService.java)提供Java允许的公开题目副本和候选集合；Python的[QuestionIndex](../../kaoyan-agent/question_search.py)做标签匹配及本地向量匹配，返回编号、版本、方法和分数。
 
 题目索引与知识资料索引独立：题干、选项、知识点参与检索，标准答案和个人作答不参与公共语义匹配；历史覆盖快照仅在内存匹配。索引未就绪时不拿旧集合执行操作，也不混入无关题补数量。
 
@@ -448,7 +450,7 @@ LangChain在这里提供模板、可组合分支、检索器和工具包装；�
 ### 隐私是两个独立边界
 
 - **本人数据访问**：Java依据当前账号读取本人记录，不能读取其他账号的数据。
-- **外发模型授权**：[AssistantPrivacyService](kaoyan-B/src/main/java/com/kaoyan/service/AssistantPrivacyService.java)保存是否允许模型及错题、收藏、统计、档案、笔记类别，绑定接收端点和授权版本；Python的[learning.py](kaoyan-agent/learning.py)继续按类别投影必要上下文。个人笔记还要逐份选择。
+- **外发模型授权**：[AssistantPrivacyService](../../kaoyan-B/src/main/java/com/kaoyan/service/AssistantPrivacyService.java)保存是否允许模型及错题、收藏、统计、档案、笔记类别，绑定接收端点和授权版本；Python的[learning.py](../../kaoyan-agent/learning.py)继续按类别投影必要上下文。个人笔记还要逐份选择。
 
 能在平台内读取本人错题，不等于默认允许把它发给外部模型。后台处理前后仍会检查令牌、账号和授权变化；撤回授权会触发活动任务处理。聊天副本按30天保留与主动清除规则处理，原始学习记录和已保存个人笔记独立保留；不能推断供应商或备份也已同步删除。
 
@@ -456,11 +458,11 @@ LangChain在这里提供模板、可组合分支、检索器和工具包装；�
 
 **选择笔记及版本 → Python生成`documentProposal` → 前端预览与编辑差异 → 用户确认 → Java `apply → PersonalDocumentService.save` → 保存新历史版本。**
 
-[PersonalNotes.vue](kaoyan-frontend/src/views/PersonalNotes.vue)提供独立手动编辑，[ChatAssistant.vue](kaoyan-frontend/src/views/ChatAssistant.vue)提供建议预览。`diff`的`diffLines`比较修改前后；[SafeMarkdown.vue](kaoyan-frontend/src/components/SafeMarkdown.vue)用Markdown-it转换格式，禁用原始HTML、远程图片，并以DOMPurify清洗输出，链接仅接受响应授权的HTTPS地址。这些处理减少模型或用户文本变成危险页面内容的风险。
+[PersonalNotes.vue](../../kaoyan-frontend/src/views/PersonalNotes.vue)提供独立手动编辑，[ChatAssistant.vue](../../kaoyan-frontend/src/views/ChatAssistant.vue)提供建议预览。`diff`的`diffLines`比较修改前后；[SafeMarkdown.vue](../../kaoyan-frontend/src/components/SafeMarkdown.vue)用Markdown-it转换格式，禁用原始HTML、远程图片，并以DOMPurify清洗输出，链接仅接受响应授权的HTTPS地址。这些处理减少模型或用户文本变成危险页面内容的风险。
 
-[PersonalDocumentService.save](kaoyan-B/src/main/java/com/kaoyan/service/PersonalDocumentService.java)检查`baseVersion`，旧版本409，不能静默覆盖。`source_task_id`用于同次建议确认的重复处理，重复确认返回该次保存版本。生成成功只代表建议已经产生，尚未确认就不会修改正式笔记。个人笔记也不会自动进入公共知识库。
+[PersonalDocumentService.save](../../kaoyan-B/src/main/java/com/kaoyan/service/PersonalDocumentService.java)检查`baseVersion`，旧版本409，不能静默覆盖。`source_task_id`用于同次建议确认的重复处理，重复确认返回该次保存版本。生成成功只代表建议已经产生，尚未确认就不会修改正式笔记。个人笔记也不会自动进入公共知识库。
 
-选读：[ConversationIntegrationTest](kaoyan-B/src/test/java/com/kaoyan/ConversationIntegrationTest.java)、[test_conversation.py](kaoyan-agent/tests/test_conversation.py)、[test_learning_privacy.py](kaoyan-agent/tests/test_learning_privacy.py)、[前端会话测试](kaoyan-frontend/tests/conversation.spec.ts)。本课首次阅读可暂缓正则细节与索引内部调参，先掌握入口、归属和终态。
+选读：[ConversationIntegrationTest](../../kaoyan-B/src/test/java/com/kaoyan/ConversationIntegrationTest.java)、[test_conversation.py](../../kaoyan-agent/tests/test_conversation.py)、[test_learning_privacy.py](../../kaoyan-agent/tests/test_learning_privacy.py)、[前端会话测试](../../kaoyan-frontend/tests/conversation.spec.ts)。本课首次阅读可暂缓正则细节与索引内部调参，先掌握入口、归属和终态。
 
 复述任务：同一个生成任务依次经历发送、断线、重连、完成，说明哪些请求可能触发模型，以及什么时刻可以把笔记称为已经保存。检查题见[练习07](practice.md#unit-07)。
 
@@ -478,11 +480,11 @@ LangChain在这里提供模板、可组合分支、检索器和工具包装；�
 
 ### 按检查入口阅读
 
-1. [Java POM](kaoyan-B/pom.xml)和`mvnw`定义Java17目标、依赖、编译与测试。`./mvnw -B verify`是Java变更的现有检查入口；测试使用Spring Boot Test等，H2仅在测试依赖中。H2通过不等于MySQL所有语义已验证。
-2. [Python测试目录](kaoyan-agent/tests)覆盖契约、工作流、来源、授权、Qdrant和模型预算等；pytest负责发现、组织和执行测试，pytest-asyncio支持异步案例。默认测试中的模型替身不会证明真实供应商调用成功。
-3. [前端package.json](kaoyan-frontend/package.json)的`build`先检查Vue/TS类型再打包；[Playwright配置](kaoyan-frontend/playwright.config.ts)和[测试目录](kaoyan-frontend/tests)组织浏览器检查。生产构建通过只说明类型与构建完成，不等于用户全流程已经通过。
-4. [CI工作流](.github/workflows/ci.yml)在配置的push/PR条件下执行Python、Java、前端、文档/契约及隔离链路检查；失败时保存诊断。仓库存在CI文件不等于当前远端运行已经通过。
-5. 需要跨端验证时查看[README](README.md)中的隔离条件，再按已有脚本构建依赖并运行；不能直接用日常数据库或浏览器资料做清空重置测试。
+1. [Java POM](../../kaoyan-B/pom.xml)和`mvnw`定义Java17目标、依赖、编译与测试。`./mvnw -B verify`是Java变更的现有检查入口；测试使用Spring Boot Test等，H2仅在测试依赖中。H2通过不等于MySQL所有语义已验证。
+2. [Python测试目录](../../kaoyan-agent/tests)覆盖契约、工作流、来源、授权、Qdrant和模型预算等；pytest负责发现、组织和执行测试，pytest-asyncio支持异步案例。默认测试中的模型替身不会证明真实供应商调用成功。
+3. [前端package.json](../../kaoyan-frontend/package.json)的`build`先检查Vue/TS类型再打包；[Playwright配置](../../kaoyan-frontend/playwright.config.ts)和[测试目录](../../kaoyan-frontend/tests)组织浏览器检查。生产构建通过只说明类型与构建完成，不等于用户全流程已经通过。
+4. [CI工作流](../../.github/workflows/ci.yml)在配置的push/PR条件下执行Python、Java、前端、文档/契约及隔离链路检查；失败时保存诊断。仓库存在CI文件不等于当前远端运行已经通过。
+5. 需要跨端验证时查看[README](../../README.md)中的隔离条件，再按已有脚本构建依赖并运行；不能直接用日常数据库或浏览器资料做清空重置测试。
 
 ### 选什么证据回答什么问题
 
@@ -499,16 +501,16 @@ LangChain在这里提供模板、可组合分支、检索器和工具包装；�
 
 ### 数据库迁移与配置
 
-[db目录](kaoyan-B/src/main/resources/db)保存初始化和增量脚本：V7增加作答快照，V8增加任务软删除，V9增加题目来源；V10增加会话/消息/生成，V11增加个人文档及版本，V12增加隐私和助手操作。当前是显式核对后应用迁移，没有全仓自动迁移闭环。V1含DROP TABLE，仅适用于明确可丢弃的独立初始化库；本次不执行任何迁移。
+[db目录](../../kaoyan-B/src/main/resources/db)保存初始化和增量脚本：V7增加作答快照，V8增加任务软删除，V9增加题目来源；V10增加会话/消息/生成，V11增加个人文档及版本，V12增加隐私和助手操作。当前是显式核对后应用迁移，没有全仓自动迁移闭环。V1含DROP TABLE，仅适用于明确可丢弃的独立初始化库；本次不执行任何迁移。
 
-Java的[application.yml](kaoyan-B/src/main/resources/application.yml)用环境占位符读取数据库、Redis、JWT和内部调用配置；Python的[Settings](kaoyan-agent/config.py)读取模型及检索配置。真实模型密钥只在Python侧；内部凭证两端一致。前端构建变量会进入浏览器使用，不能放模型密钥。
+Java的[application.yml](../../kaoyan-B/src/main/resources/application.yml)用环境占位符读取数据库、Redis、JWT和内部调用配置；Python的[Settings](../../kaoyan-agent/config.py)读取模型及检索配置。真实模型密钥只在Python侧；内部凭证两端一致。前端构建变量会进入浏览器使用，不能放模型密钥。
 
 Maven Wrapper帮助按项目配置启动Maven；npm按锁文件安装前端依赖；Python requirements和约束文件固定依赖版本。这些解决构建与依赖复现，不等于数据库结构或生产环境已经准备好。
 
 ### 辅助技术与剩余边界
 
 - Springdoc/OpenAPI描述接口，Swagger UI和Knife4j提供可浏览、可调试的文档界面；不是认证或业务实现本身。
-- [FileController](kaoyan-B/src/main/java/com/kaoyan/controller/FileController.java)、[OssUtil](kaoyan-B/src/main/java/com/kaoyan/util/OssUtil.java)提供可选文件上传；没有配置OSS不影响核心服务的设计启动入口，但文件接口不可用。个人Markdown笔记保存在业务库，与上传对象不是一回事。
+- [FileController](../../kaoyan-B/src/main/java/com/kaoyan/controller/FileController.java)、[OssUtil](../../kaoyan-B/src/main/java/com/kaoyan/util/OssUtil.java)提供可选文件上传；没有配置OSS不影响核心服务的设计启动入口，但文件接口不可用。个人Markdown笔记保存在业务库，与上传对象不是一回事。
 - 完整刷题草稿/结束状态、正式资料在线不可变发布、广覆盖资料审核、多实例可靠性、跨重启模型预算和公网交付仍不能由已有基础测试推导为完成。
 - 历史验证报告只能说明其日期、代码及环境的结果。本次仅增加学习文档，不刷新历史测试数量，也不重跑真实业务、模型或部署检查。
 

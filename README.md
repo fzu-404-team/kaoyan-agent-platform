@@ -1,5 +1,31 @@
 # 考研 Agent 智能备考平台
 
+主助手和独立择校支持在文字中给出报考条件，缺项会具体提示。普通408概念无审核资料时，获授权的独立问答可展示有明确标注的通用 AI 解释。知识问答只保留校验通过的部分结论及对应引用，详见[本次契约](考研Agent平台搭建文档.md#自然语言择校与知识回答降级契约2026-11-18)。
+
+侧栏「择校推荐」对应 `/school-recommendations`，提供条件推荐、随学情更新及历史。在个人中心维护报考年份及意向院校，生成前可填写意向地区、专业、学位和学习方式，也可填整套模考总分及科目组合。V16 有适用记录时展示往年参考复试线。操作、排序和数据口径见[独立择校契约](考研Agent平台搭建文档.md#独立择校推荐与候选排序)。
+
+2026-11-19 按分数择校：在择校页填写模考总分，或者在输入框和主对话里写“估分320，英一数一，推荐哪些学校”，系统按往年录取最低分／中位分把候选分为冲、稳、保（冲2稳2保1，依次补位），低于往年范围或缺分数参考的学校只报数量。分层和回答全部由规则完成，不增加模型调用，分层不代表录取概率。规则见[按分数择校契约](考研Agent平台搭建文档.md#按分数择校契约2026-11-19)，验证见[验证记录](docs/score-match-verification-2026-11-19.md)；日常服务尚未重启加载。
+
+## 院校录取分数统计导入（2026-11-18）
+
+用户提供的2024—2026年录取分数CSV按“用户提供、经用户审核批准”接入（非官方），规则见[搭建文档契约](考研Agent平台搭建文档.md#院校录取分数统计导入契约2026-11-18)，本轮结果见[验证记录](docs/school-scores-verification-2026-11-18.md)。
+
+2026-11-19 已在本机应用 V17，将 1,169 条分数统计的登记状态统一为 `verified`，并切换到 本机新版知识库 `school-score-corpus-a90ca0d3d45795e0.json`。新版本 2,018 条记录均为 `verified`，原始证据等级和待核提示继续生效。加载新版语料前须使用兼容版 Agent 并构建对应向量索引。现有库如需更新须先加载兼容版 Java，并按备份和隔离验证流程显式执行 V17。见[本机切换记录](docs/school-scores-verification-2026-11-18.md#本机统一-verified-状态2026-11-19)。
+
+```bash
+.cache/mcp-pdf-venv/bin/python -I scripts/build-school-score-stats.py --csv-dir /path/to/csv-dir --base /path/to/active-corpus.json
+```
+
+```bash
+.cache/mcp-pdf-venv/bin/python scripts/import-school-score-stats.py --rehearse
+```
+
+构建脚本生成 `outputs/school-scores-20261118/` 下的清单与预览，以及 `kaoyan-agent/knowledge/school-score-corpus-<哈希>.json` 新语料。导入脚本默认只读预览；`--rehearse` 只在随机隔离库预演；写入日常库须追加 `--apply --expected-sha <清单SHA-256>`，并先得到用户对具体清单的确认。切换日常 `RAG_DATA`、运行 `ingest.py` 重建索引需先停止正在使用本地Qdrant目录的Agent。
+
+## 从线上院校目录构建 RAG 副本
+
+使用锁定依赖环境运行 `python scripts/build-school-catalog-corpus.py --snapshot /path/to/public-catalog.ndjson --base /path/to/active-corpus.json --output-dir /path/to/releases`。输入是从公开院校、专业详情及指标范围导出的只读 NDJSON 快照，脚本写入按内容哈希命名的新语料文件。导入规则、审批语义与上线核对见 [RAG 契约](docs/rag.md#线上院校目录副本)。
+
 ## Agent审查修复（2026-11-13）
 
 仅改Python Agent，四项：输入计量词表改为优先读取项目内缓存并在 `/health` 的 `tokenCounting` 显示当前计量模式；单项知识问答在检索不可用时明确说明，不再整单失败；供应商返回空结果时按既有原因码降级；`LOG_LEVEL` 开始生效，日志带时间戳，第三方库只输出WARNING及以上。任务类型、公开结果字段、SSE与调用次数上限不变，无数据库迁移。
@@ -22,6 +48,10 @@
 
 2026-11-14 对话回答统一分段送达：主对话里的知识问答、学情分析、院校推荐、复合回答及规则提示，在通过校验后按句分段推送到页面（最多24段，额外等待不超过1秒）；未经校验的模型原文仍不显示。错题辅导和笔记草稿保持边生成边显示。Python pytest 1012项、Java verify 239项（2项跳过）通过；浏览器实际效果未检查。
 
+2026-11-19 择校候选分级扩充（用户批准，不另行逐条核实，仅本机）：普通计划且来源为白名单 https 的目录记录，以及无质量标记的往年分数统计，都作为正式候选，按 `evidenceLevel`（官方复核／已核对目录／批量入库／仅往年统计）标注；证据等级只决定同校代表和展示顺序，不参与入选抽样。来源白名单新增79个院校域名。Python pytest 1061项、Java verify 263项（2项跳过）、前端生产构建通过；按实际资料在隔离进程内模拟30次081200推荐，出现102所学校。日常服务尚未重启，浏览器效果未检查。契约见[目录分级候选契约](考研Agent平台搭建文档.md#目录记录分级纳入正式候选契约2026-11-19)，记录见[验证记录](docs/school-evidence-levels-verification-2026-11-19.md)。
+
+2026-11-19 刷题随机抽题：开始练习未指定题目时（普通、错题本、收藏夹），先在本人没做过的题中随机抽取，不足再按最久没做的题补齐；批次创建后题序固定。指定题目的批次、`GET /api/questions/practice` 及学习助手内部抽题仍按 stable_order。Java verify 271项（2项跳过）通过，新增排序单元测试3项与 H2 接口集成测试2项；日常 Java 服务未重启，页面未检查。契约见[搭建文档4.4节](考研Agent平台搭建文档.md#44-刷题中心的完整建设规则)，记录见[验证记录](docs/practice-random-draw-verification-2026-11-19.md)。
+
 ## 线上DeepSeek模型已启用（2026-11-03）
 
 按用户要求沿用当前项目本机模型配置，服务器已开启DeepSeek，主模型和路由模型均为 `deepseek-flash`，thinking为disabled。已仅重启Python Agent并核对运行进程配置；真实HelloAgents适配层连通请求1次通过，公网首页与注册关闭检查通过。保留线上每日20次模型调用上限及账号原有隐私授权，使用个人数据须本人在对话“隐私”中授权当前供应商及相应类别。密钥不写入仓库；备份、回退及验证边界见[模型配置记录](docs/server-llm-verification-2026-11-03.md)。
@@ -32,18 +62,15 @@
 
 Java验证239项（2项跳过）、运维pytest103项、独立发布包启动、真实OSS上传／归属／匿名读取及公网浏览器显示和刷新均通过，测试对象已清理、test1原头像已恢复。配置／回退入口与实际证据见[本轮记录](docs/server-oss-verification-2026-11-03.md)。本机新增可选 `OSS_KEY_PREFIX` 默认空；修改配置后须重新加载Java。
 
-
 ## 线上测试账号与暂停注册（2026-11-03）
 
 服务器已部署注册开关：`REGISTRATION_ENABLED=false`，已有账号可登录；匿名 `GET /api/auth/config` 只返回注册开关。页面未确认开启时不展示注册入口或表单，后端关闭时拒绝直接注册请求。其他环境默认true；恢复注册只需受控调整服务器开关并重新加载Java。
 
 本轮已新增test1至test10学生账号，每人400次近28天模拟作答、20个结束批次、16个收藏及不同薄弱科目；不代表真实学习效果，未开启模型或额度豁免。凭证不写入仓库；一次性工具默认只读预览，正式创建／续做只认私密执行日志。分布、命令入口、备份及实际验收见[线上测试账号记录](docs/server-test-accounts-2026-11-03.md)。
 
-
 ## 已部署服务器的V15增量升级（2026-11-03）
 
 `scripts/upgrade-server-release.py` 是本次Ubuntu实例的增量入口，保留首次切换工具。默认只读；需要当前／新版目录、可信运行文件清单及哈希、已通过的恢复预演与计划哈希，只有显式 `--activate` 执行维护、备份恢复预演、V15和程序切换。使用已有服务配置的精确备份回退，不重复公共资料导入；已提交V15不自动撤销。运行约定和实际结果见[增量上线记录](docs/server-release-activation-2026-11-03.md#v15增量上线2026-11-03)。 本轮已直接完成V15及新版三端切换，原字段指纹保持、公网TLS／新版首页与静态资源哈希、未认证API边界检查通过；模型仍关闭。登录后业务与真实模型未运行。
-
 
 ## 学情精简与档案学位类型（2026-11-03）
 
@@ -184,7 +211,7 @@ Vue 3 / TypeScript → Spring Boot 3.5 / MyBatis-Plus / MySQL → FastAPI RAG。
 
 - `/internal/rag/chat`：内部凭证认证、任务枚举、输入上限、类型化上下文、结果和引用校验。
 - 408：4段带来源的概念摘要，默认离线词项检索；可启用中文Embedding＋持久化Qdrant。覆盖范围较小，未覆盖时明确返回。
-- 院校：3所学校的6条2027年普通全日制081200/085404资料。按年份、专业、学位、地区、学习方式与考试科目筛选，最多5个候选；不估计录取概率。
+- 院校：3所学校的6条2027年普通全日制081200/085404资料（演示语料）。按年份、专业、学位、地区、学习方式与考试科目筛选，最多5个候选；不估计录取概率。本机当前资料另含目录记录与往年分数统计，按证据等级纳入候选（2026-11-19）。
 - AI：默认关闭。启用后解释候选或回答资料覆盖的问题；模型异常时保留规则结果，来源编号经过程序校验。
 - 总结：Java只传本人已判分、带题目版本快照的有效作答，Python不连接业务数据库。
 - 错题辅导：答错后、回顾页或错题本点击“AI 解释与追问”，围绕同一次历史作答解释误区并连续追问；每轮保存在`/tasks/history`，可在那里继续。Java校验归属和快照并提供标准答案，模型不能更改判分。模型关闭或未授权错题外发时仅展示原题解析及明确提示；本功能无新增数据库迁移，合并后的整站仍需V10—V12。实现与验证范围见[错题辅导验证记录](docs/wrong-question-tutor-verification.md)。
@@ -202,7 +229,7 @@ Vue 3 / TypeScript → Spring Boot 3.5 / MyBatis-Plus / MySQL → FastAPI RAG。
 
 本机已于2026-10-25按用户后续授权完成`kaoyan_dev`的V13迁移：整库备份恢复及独立迁移预演通过，原17张表数据、字段和索引保持一致，新增10张表。根`.env`已保存`KAOYAN_LEARNING_ENABLED=true`；MySQL、Redis及三端已启动，访问[本机平台](http://127.0.0.1:5173/)。这只是本机当前状态，其他环境仍需自行核对迁移；本机不要重复执行V13。备份位置、验证及回退边界见[启用记录](docs/learning-loop-verification-2026-10-25.md#本机v13迁移与启用后续授权)。
 
-首页及刷题页提供诊断入口，学习统计展示画像，院校页可保存自动推荐条件；自动推荐默认未开启，由本人保存开关。模型授权仍默认关闭，自动规则推荐不调用外部模型，沿用任务额度。当前日常题库只有数据结构，未补造四科题、审核估分蓝图或院校历史分数线；缺少资料时界面明确展示，不能把局部诊断当完整408预测。
+首页及刷题页提供诊断入口，学习统计展示画像，独立择校页的「自动更新」可保存推荐条件；自动推荐默认未开启，由本人保存开关。模型授权仍默认关闭，自动规则推荐不调用外部模型，沿用任务额度。局部诊断与完整408分数的口径分开，缺少资料时页面显示对应提示。
 
 新增隔离链路脚本（实际Java→Python、H2、Redis替身、合成四科夹具、模型关闭），需要先完成Java测试编译及测试类路径、前端生产构建：
 
@@ -302,11 +329,13 @@ npm ci
 npm run dev
 ```
 
-打开 [本地页面](http://localhost:5173)，注册并在个人中心填写2027年档案。院校库点击“条件推荐”，选择专业与学位类型；“智能问答”支持明确任务或自动识别。无MySQL时仍可独立验证Python接口和运行集成测试，不能据此声称实际MySQL联调已通过。
+打开 [本地页面](http://localhost:5173)，登录并在个人中心填写报考年份。侧栏进入「择校推荐」，选择专业、学位及其他报考条件。院校库可浏览专业和招生资料。无MySQL时可以独立验证Python接口与运行隔离集成测试。
 
 Linux/macOS使用 `python3.13 -m venv .venv` 和 `.venv/bin/python`。Java启动前在可信的根目录执行 `set -a; . ./.env; set +a`，随后进入 `kaoyan-B` 运行 `bash mvnw -B -ntp package` 和 `java -jar target/kaoyan-backend-1.0.0.jar`。运行Java测试时，设置 `PYTHON_EXECUTABLE` 为该虚拟环境Python的绝对路径。
 
 ## 扩充题库
+
+2009—2026 年的 408 试卷与参考答案已按用户提供的材料导入本机开发库，本地题库已发布 552 道单选。题干与选项完整且有参考答案的单选可发布，缺失的解析保留来源或缺失说明。本批限本机个人学习，外部收录许可待确认。详见[本机审核发布记录](docs/data-collection/408-past-paper-sources-2026-11-18.md#本机审核发布2026-11-19)。
 
 管理员登录本地页面后，进入“题目录入与审核”→“批量导入”：
 
@@ -376,7 +405,6 @@ LLM_MODEL_ROUTER=deepseek-flash
 
 填写后只测Python链路可从项目根目录运行`cd kaoyan-agent`，再运行`../.cache/mcp-pdf-venv/bin/python -m uvicorn main:create_app --factory --host 127.0.0.1 --port 8001`（此路径为本机当前装全依赖的环境；其他机器使用自行安装requirements的虚拟环境）。`GET /health`的`modelEnabled=true`仅代表配置开启，不代表供应商调用成功。整站`/tasks`测试还需要新版Java、Redis和已应用V10/V11/V12的数据库；不可通过重跑V1准备已有业务库。2026-10-22已完成两轮Python链路的DeepSeek真实请求，范围和整站待办见[接入验证记录](docs/deepseek-verification-2026-10-22.md)。
 
-
 ### 可选招生官网链接 MCP
 
 当前登记范围已从10校扩展到院校库全部**121校**（新增111校，包含北京大学、清华大学），逐校入口和核对限制见[官网登记清单](docs/admission-source-catalog-2026-11-01.md)。其中浙江大学、武汉理工大学、云南大学提供已核对的学校HTTPS主页导航，需进入研究生招生栏目；南京师范大学采用官方迁站提示的新入口。只补充链接，不代表121校年度招生数据已审核。2026-11-01按用户后续明确授权重启本机三端并加载新版登记表，北大、清华、矿大北京的内部规则查询及前端121校清单检查通过；随后按用户关闭指令，已正常停止三端、项目MCP、MySQL及Redis，相关端口均已释放，需重新启动后访问。旧回答不自动重新生成；登录后的日常页面操作尚未实际验收。
@@ -410,6 +438,7 @@ Windows从根目录执行：
 
 ```powershell
 .\.venv\Scripts\python.exe -X utf8 -m pytest -q kaoyan-agent/tests
+.\.venv\Scripts\python.exe -X utf8 -m pytest -q scripts/tests
 $env:PYTHON_EXECUTABLE = (Resolve-Path .\.venv\Scripts\python.exe).Path
 Push-Location kaoyan-B
 .\mvnw.cmd -B -ntp verify
@@ -426,9 +455,9 @@ Java测试在独立H2库启动真实Python子进程，不读日常MySQL，也不
 检索/引用质量评测默认离线，不调用模型；`--model` 才读取根`.env`并产生真实供应商请求与费用。使用已安装当前HelloAgents依赖的Python环境执行（本机可用环境为`.cache/mcp-pdf-venv`，见[准备环境](#准备环境)的本机环境现状）：
 
 ```bash
-.cache/mcp-pdf-venv/bin/python scripts/eval-quality.py --output .cache/quality-report.json
-.cache/mcp-pdf-venv/bin/python scripts/eval-quality.py --backend bm25 --output .cache/quality-bm25.json
-.cache/mcp-pdf-venv/bin/python scripts/eval-quality.py --model --only qa-stack,qa-tcp --output .cache/quality-model.json
+.cache/mcp-pdf-venv/bin/python scripts/eval-quality.py --data kaoyan-agent/knowledge/feature-2027-corpus.json --output .cache/quality-report.json
+.cache/mcp-pdf-venv/bin/python scripts/eval-quality.py --backend bm25 --data kaoyan-agent/knowledge/feature-2027-corpus.json --output .cache/quality-bm25.json
+.cache/mcp-pdf-venv/bin/python scripts/eval-quality.py --model --data kaoyan-agent/knowledge/feature-2027-corpus.json --only qa-stack,qa-tcp --output .cache/quality-model.json
 ```
 
 报告路径已存在时拒绝覆盖；本轮结果与限制见[质量评测记录](docs/quality-eval-2026-10-24.md)。
@@ -462,7 +491,6 @@ python scripts/smoke-question-admin.py --output .cache/new-question-admin-browse
 
 使用已安装项目依赖的Python（macOS／Linux可使用`.venv/bin/python`），浏览器按前述Playwright安装方式准备，或通过`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`指定本机Chrome。
 脚本使用随机回环端口、专用内存H2、Redis替身和独立浏览器上下文，自动创建测试账号；测试夹具拒绝写入其他数据库。检查1280与390宽度下的录题、过期编辑、审核、停用／恢复、学生权限和历史快照，完成后关闭临时进程。报告路径已存在时拒绝覆盖；不读取日常数据库、不调用模型，也不代表真实MySQL或手机实机验收。
-
 
 ## 本地题目语义检索
 
