@@ -56,12 +56,14 @@ class ModelConversationResolution(ConversationResolution):
     def __get_pydantic_json_schema__(
         cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler,
     ) -> JsonSchemaValue:
-        """Keep Java-only lookup parameters out of model input and its budget."""
+        """Keep server-only admission actions out of the model's input budget."""
         schema = handler.resolve_ref_schema(handler(core_schema))
-        schema["properties"].pop("schoolLookup", None)
-        actions = schema["properties"]["action"]["enum"]
-        schema["properties"]["action"]["enum"] = [
-            action for action in actions if action != "SCHOOL_LOOKUP"
+        properties = schema["properties"]
+        for field in ("admissionCheck", "admissionLinks", "schoolLookup"):
+            properties.pop(field, None)
+        server_actions = {"ADMISSION_CHECK", "ADMISSION_LINKS", "SCHOOL_LOOKUP"}
+        properties["action"]["enum"] = [
+            action for action in properties["action"]["enum"] if action not in server_actions
         ]
         return schema
 

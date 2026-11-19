@@ -441,7 +441,8 @@ async def test_parallel_phase_budget_does_not_consume_global_allowance_when_reje
         await model.close()
 
 
-def test_plan_and_stream_share_four_attempt_budget_through_java_checkpoint():
+def test_plan_and_stream_share_four_attempt_budget_through_java_checkpoint(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr("core.tokens.local_encoding", lambda: None)
     calls = []
 
     def provider(req):
