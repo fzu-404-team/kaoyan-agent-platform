@@ -7,6 +7,7 @@ import com.kaoyan.entity.Task;
 import com.kaoyan.learning.LearningProfiles;
 import com.kaoyan.service.AdmissionLinksValidator;
 import com.kaoyan.service.PersonalDocumentService;
+import com.kaoyan.service.SchoolScoreStatistics;
 import com.kaoyan.service.StudyStatService;
 import com.kaoyan.service.TaskService;
 import org.springframework.beans.factory.ObjectProvider;
@@ -108,7 +109,6 @@ public class ExportSources {
                     strings(out, candidate.path("pendingChecks"), "待确认：");
                 }
                 if (links != null) linksBlock(out, links);
-                append(out, data.path("coverage"));
                 if (!legacyAdmission) {
                     append(out, data.path("notice"));
                     strings(out, data.path("followUp"), "待补充：");
@@ -254,6 +254,25 @@ public class ExportSources {
             catalogMetric(out, context.path("cutoffReference"), "复试参考线", row.path("scoreLine"), row.path("year"));
             if (row.hasNonNull("remark")) out.append("原登记备注：").append(cell(row.path("remark"))).append("\n\n");
         }
+        JsonNode scores = catalog.path("scoreStatistics");
+        if (scores.isObject()) {
+            out.append("### 往年录取分数统计（共 ").append(cell(scores.path("total"))).append(" 条）\n\n")
+                    .append(cell(scores.path("notice"))).append("\n\n");
+            for (JsonNode row : scores.path("items")) {
+                out.append("- ").append(cell(row.path("year"))).append("年 · ").append(cell(row.path("college")))
+                        .append(" · ").append(cell(row.path("majorName"))).append("（").append(cell(row.path("majorCode")))
+                        .append("） · 科目").append(cell(row.path("examCombo")))
+                        .append("：复试线 ").append(cell(row.path("retestLine")))
+                        .append("，最低 ").append(cell(row.path("minScore")))
+                        .append("，中位 ").append(cell(row.path("medianScore")))
+                        .append("，平均 ").append(cell(row.path("avgScore")))
+                        .append("，最高 ").append(cell(row.path("maxScore")))
+                        .append("，公布录取 ").append(cell(row.path("admittedCount"))).append(" 人");
+                if (!row.path("flags").isEmpty()) out.append("；数据提示：").append(scoreFlags(row.path("flags")));
+                out.append("\n");
+            }
+            out.append("\n");
+        }
     }
 
     private static void catalogMetric(StringBuilder out, JsonNode metric, String label, JsonNode legacy, JsonNode year) {
@@ -294,6 +313,12 @@ public class ExportSources {
         for (JsonNode value : values) if (value.isTextual()) out.append("- ").append(prefix).append(cell(value)).append("\n");
         out.append("\n");
     }
+    private static String scoreFlags(JsonNode values) {
+        var parts = new ArrayList<String>();
+        for (JsonNode value : values) if (value.isTextual()) parts.add(escape(SchoolScoreStatistics.FLAG_LABELS.getOrDefault(value.asText(), "数据待核对")));
+        return String.join("、", parts);
+    }
+
     private static String join(JsonNode values) {
         var parts = new ArrayList<String>();
         for (JsonNode value : values) if (value.isValueNode()) parts.add(cell(value));

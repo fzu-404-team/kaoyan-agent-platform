@@ -41,6 +41,14 @@
         <el-table-column prop="remark" label="备注" min-width="420" />
       </el-table>
     </div>
+
+    <template v-if="detail.scoreStatistics">
+      <div class="score-title">
+        <h3 class="sec-title">往年录取分数统计</h3>
+      </div>
+      <el-empty v-if="!detail.scoreStatistics.length" description="该院校暂无录取分数统计" />
+      <div v-else class="card score-card"><SchoolScoreTable :rows="detail.scoreStatistics" /></div>
+    </template>
     </template>
   </div>
 </template>
@@ -52,6 +60,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { getSchoolDetail } from '@/api/school'
 import type { SchoolDetailVO } from '@/api/school'
 import SchoolMetric from '@/components/SchoolMetric.vue'
+import SchoolScoreTable from '@/components/SchoolScoreTable.vue'
 import { useUserStore } from '@/stores/user'
 
 const route = useRoute()
@@ -116,5 +125,8 @@ onBeforeUnmount(() => { sequence++; active?.abort() })
 .sec-title { font-size: 15px; font-weight: 600; margin: 0 0 12px; }
 .program-context { color: var(--c-ink-2); font-size: 13px; }
 .card { min-width: 0; overflow: hidden; }
+.score-title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; margin: 24px 0 12px; }
+.score-title .sec-title { margin: 0; }
+.score-card { padding: 16px; }
 .loading-state { position: relative; min-height: 160px; padding: 24px; }
 </style>

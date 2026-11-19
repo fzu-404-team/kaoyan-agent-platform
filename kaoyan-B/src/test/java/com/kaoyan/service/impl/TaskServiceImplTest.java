@@ -87,6 +87,19 @@ class TaskServiceImplTest {
         assertThrows(IllegalStateException.class, () -> TaskServiceImpl.validateResponse(task, invalid));
     }
 
+    @Test void candidateEvidenceLevelsAndScoreHistoryWithoutCitations() {
+        var task = new Task(); task.setId("test"); task.setTaskType("KNOWLEDGE_QA");
+        java.util.function.Function<Map<String, Object>, AgentResponse> with = candidate ->
+            response("test", Map.of("answer", "候选", "candidates", List.of(candidate)));
+        assertDoesNotThrow(() -> TaskServiceImpl.validateResponse(task,
+            with.apply(Map.of("programId", "score-1", "sourceIds", List.of(), "evidenceLevel", "SCORE_HISTORY"))));
+        for (Map<String, Object> invalid : List.of(
+                Map.<String, Object>of("programId", "p", "sourceIds", List.of(), "evidenceLevel", "USER_APPROVED"),
+                Map.<String, Object>of("programId", "p", "sourceIds", List.of()),
+                Map.<String, Object>of("programId", "p", "sourceIds", List.of(), "evidenceLevel", "GUESSED")))
+            assertThrows(IllegalStateException.class, () -> TaskServiceImpl.validateResponse(task, with.apply(invalid)));
+    }
+
     @SuppressWarnings("unchecked")
     @Test void fallbackReasonMustBeKnownAndOnlyOnDowngradedResults() {
         var task = new Task(); task.setId("test"); task.setTaskType("KNOWLEDGE_QA");
@@ -136,6 +149,60 @@ class TaskServiceImplTest {
         service.submit(1L, "KNOWLEDGE_QA", Map.of("query", "q"));
         verify(tasks).countForUserSince(1L, java.time.LocalDateTime.parse("2026-10-14T08:00:00"));
         verify(tasks).countForUserSince(1L, java.time.LocalDateTime.parse("2026-10-14T08:29:00"));
+    }
+
+    /** score-match-v1 (2026-11-19): tier fields are checked like any other agent output. */
+    @Test void scoreMatchAndScoreFilterMustFollowTheRule() {
+        var task = new Task(); task.setId("test"); task.setTaskType("KNOWLEDGE_QA");
+        java.util.function.Function<Map<String, Object>, Map<String, Object>> match = changes -> {
+            var value = new java.util.HashMap<String, Object>(Map.of("ruleVersion", "score-match-v1", "tier", "MATCH",
+                "statYear", 2026, "college", "计算机学院", "examCombo", "11408", "minScore", 300,
+                "medianScore", 330, "gapToMin", 20));
+            value.putAll(changes);
+            return value;
+        };
+        java.util.function.BiFunction<Map<String, Object>, Map<String, Object>, AgentResponse> with = (scoreMatch, filter) -> {
+            var candidate = Map.<String, Object>of("programId", "score-1", "sourceIds", List.of(), "evidenceLevel",
+                "SCORE_HISTORY", "college", "计算机学院", "year", 2026, "scoreMatch", scoreMatch);
+            var body = new java.util.HashMap<String, Object>(Map.of("answer", "候选", "candidates", List.of(candidate)));
+            if (filter != null) body.put("scoreFilter", filter);
+            return response("test", body);
+        };
+        var counts = Map.<String, Object>of("comparable", 3, "below", 1, "noData", 0, "comboMismatch", 2);
+        var filter = Map.<String, Object>of("ruleVersion", "score-match-v1", "examCombo", "11408", "counts", counts,
+            "notice", "往年分数不代表今年分数线");
+        assertDoesNotThrow(() -> TaskServiceImpl.validateResponse(task, with.apply(match.apply(Map.of()), filter)));
+        assertDoesNotThrow(() -> TaskServiceImpl.validateResponse(task,
+            with.apply(match.apply(Map.of("retestLine", 298.5, "gapToMin", -12)), null)));
+        for (var invalid : List.<Map<String, Object>>of(Map.of("tier", "BELOW"), Map.of("ruleVersion", "v2"),
+                Map.of("statYear", 2025), Map.of("college", "其他学院"), Map.of("minScore", 340),
+                Map.of("medianScore", 501), Map.of("examCombo", "33408"), Map.of("retestLine", "300")))
+            assertThrows(IllegalStateException.class,
+                () -> TaskServiceImpl.validateResponse(task, with.apply(match.apply(invalid), null)), invalid.toString());
+        for (var badCounts : List.<Map<String, Object>>of(Map.of("comparable", -1, "below", 0, "noData", 0, "comboMismatch", 0),
+                Map.of("comparable", 1, "below", 0, "noData", 0)))
+            assertThrows(IllegalStateException.class, () -> TaskServiceImpl.validateResponse(task,
+                with.apply(match.apply(Map.of()), Map.of("ruleVersion", "score-match-v1", "examCombo", "11408",
+                    "counts", badCounts, "notice", "x"))));
+    }
+
+    @Test void formScoreIsForwardedAsScoreQueryButNeverStored() {
+        var captured = new java.util.concurrent.atomic.AtomicReference<com.kaoyan.dto.agent.AgentRequest>();
+        when(agent.chat(anyString(), any())).thenAnswer(call -> {
+            var request = (com.kaoyan.dto.agent.AgentRequest) call.getArgument(1);
+            captured.set(request);
+            var response = response(request.getTaskId(), Map.of("answer", "候选"));
+            @SuppressWarnings("unchecked") var body = (Map<String, Object>) response.getResult();
+            body.put("resolvedTaskType", "SCHOOL_RECOMMEND");
+            return response;
+        });
+        var task = service.submit(1L, "SCHOOL_RECOMMEND",
+            Map.of("query", "按分数推荐", "mockScore", Map.of("total", 320, "examCombo", "11408")));
+        assertEquals("SUCCESS", task.getStatus());
+        assertEquals(Map.of("total", 320, "examCombo", "11408"), captured.get().getScoreQuery());
+        assertFalse(task.getInputPayload().containsKey("mockScore"));
+        service.submit(1L, "SCHOOL_RECOMMEND", Map.of("query", "普通推荐"));
+        assertNull(captured.get().getScoreQuery());
     }
 
     private AgentResponse response(String id, Object result) {

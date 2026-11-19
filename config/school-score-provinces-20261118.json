@@ -1,0 +1,630 @@
+{
+  "version": "school-score-provinces-20261118",
+  "basis": "维护者按学校主校区所在省份整理，用于补建院校基础信息；未逐校核验官网，层次不填写。",
+  "aliases": {
+    "华北电力大学（保定）": "华北电力大学",
+    "湖州师范大学学院": "湖州师范学院"
+  },
+  "schools": [
+    {
+      "name": "上海师范大学",
+      "province": "上海"
+    },
+    {
+      "name": "上海应用技术大学",
+      "province": "上海"
+    },
+    {
+      "name": "上海理工大学",
+      "province": "上海"
+    },
+    {
+      "name": "云南师范大学",
+      "province": "云南"
+    },
+    {
+      "name": "云南警官学院",
+      "province": "云南"
+    },
+    {
+      "name": "云南财经大学",
+      "province": "云南"
+    },
+    {
+      "name": "大理大学",
+      "province": "云南"
+    },
+    {
+      "name": "内蒙古工业大学",
+      "province": "内蒙古"
+    },
+    {
+      "name": "内蒙古科技大学",
+      "province": "内蒙古"
+    },
+    {
+      "name": "北京信息科技大学",
+      "province": "北京"
+    },
+    {
+      "name": "北京协和医学院",
+      "province": "北京"
+    },
+    {
+      "name": "北京工商大学",
+      "province": "北京"
+    },
+    {
+      "name": "北京建筑大学",
+      "province": "北京"
+    },
+    {
+      "name": "北京电子科技学院",
+      "province": "北京"
+    },
+    {
+      "name": "北京语言大学",
+      "province": "北京"
+    },
+    {
+      "name": "北方工业大学",
+      "province": "北京"
+    },
+    {
+      "name": "华北计算机系统工程研究所",
+      "province": "北京"
+    },
+    {
+      "name": "东北电力大学",
+      "province": "吉林"
+    },
+    {
+      "name": "中国民用航空飞行学院",
+      "province": "四川"
+    },
+    {
+      "name": "四川轻化工大学",
+      "province": "四川"
+    },
+    {
+      "name": "成都信息工程大学",
+      "province": "四川"
+    },
+    {
+      "name": "成都理工大学",
+      "province": "四川"
+    },
+    {
+      "name": "西华大学",
+      "province": "四川"
+    },
+    {
+      "name": "西南民族大学",
+      "province": "四川"
+    },
+    {
+      "name": "西南石油大学",
+      "province": "四川"
+    },
+    {
+      "name": "西南科技大学",
+      "province": "四川"
+    },
+    {
+      "name": "中国民航大学",
+      "province": "天津"
+    },
+    {
+      "name": "天津工业大学",
+      "province": "天津"
+    },
+    {
+      "name": "天津理工大学",
+      "province": "天津"
+    },
+    {
+      "name": "天津科技大学",
+      "province": "天津"
+    },
+    {
+      "name": "北方民族大学",
+      "province": "宁夏"
+    },
+    {
+      "name": "安徽农业大学",
+      "province": "安徽"
+    },
+    {
+      "name": "安徽工业大学",
+      "province": "安徽"
+    },
+    {
+      "name": "安徽建筑大学",
+      "province": "安徽"
+    },
+    {
+      "name": "临沂大学",
+      "province": "山东"
+    },
+    {
+      "name": "山东工商学院",
+      "province": "山东"
+    },
+    {
+      "name": "山东师范大学",
+      "province": "山东"
+    },
+    {
+      "name": "山东理工大学",
+      "province": "山东"
+    },
+    {
+      "name": "山东科技大学",
+      "province": "山东"
+    },
+    {
+      "name": "曲阜师范大学",
+      "province": "山东"
+    },
+    {
+      "name": "济南大学",
+      "province": "山东"
+    },
+    {
+      "name": "青岛农业大学",
+      "province": "山东"
+    },
+    {
+      "name": "青岛大学",
+      "province": "山东"
+    },
+    {
+      "name": "青岛科技大学",
+      "province": "山东"
+    },
+    {
+      "name": "鲁东大学",
+      "province": "山东"
+    },
+    {
+      "name": "齐鲁工业大学",
+      "province": "山东"
+    },
+    {
+      "name": "中北大学",
+      "province": "山西"
+    },
+    {
+      "name": "太原师范学院",
+      "province": "山西"
+    },
+    {
+      "name": "山西农业大学",
+      "province": "山西"
+    },
+    {
+      "name": "山西大学",
+      "province": "山西"
+    },
+    {
+      "name": "仲恺农业工程学院",
+      "province": "广东"
+    },
+    {
+      "name": "佛山大学",
+      "province": "广东"
+    },
+    {
+      "name": "华南农业大学",
+      "province": "广东"
+    },
+    {
+      "name": "南方科技大学",
+      "province": "广东"
+    },
+    {
+      "name": "广东工业大学",
+      "province": "广东"
+    },
+    {
+      "name": "广州大学",
+      "province": "广东"
+    },
+    {
+      "name": "汕头大学",
+      "province": "广东"
+    },
+    {
+      "name": "深圳大学",
+      "province": "广东"
+    },
+    {
+      "name": "广西师范大学",
+      "province": "广西"
+    },
+    {
+      "name": "桂林理工大学",
+      "province": "广西"
+    },
+    {
+      "name": "桂林电子科技大学",
+      "province": "广西"
+    },
+    {
+      "name": "南京中医药大学",
+      "province": "江苏"
+    },
+    {
+      "name": "南京信息工程大学",
+      "province": "江苏"
+    },
+    {
+      "name": "南京晓庄学院",
+      "province": "江苏"
+    },
+    {
+      "name": "南京林业大学",
+      "province": "江苏"
+    },
+    {
+      "name": "南京邮电大学",
+      "province": "江苏"
+    },
+    {
+      "name": "南通大学",
+      "province": "江苏"
+    },
+    {
+      "name": "常州大学",
+      "province": "江苏"
+    },
+    {
+      "name": "扬州大学",
+      "province": "江苏"
+    },
+    {
+      "name": "江苏大学",
+      "province": "江苏"
+    },
+    {
+      "name": "江苏师范大学",
+      "province": "江苏"
+    },
+    {
+      "name": "江苏海洋大学",
+      "province": "江苏"
+    },
+    {
+      "name": "江苏科技大学",
+      "province": "江苏"
+    },
+    {
+      "name": "苏州工学院（常熟理工学院）",
+      "province": "江苏"
+    },
+    {
+      "name": "苏州科技大学",
+      "province": "江苏"
+    },
+    {
+      "name": "金陵科技学院",
+      "province": "江苏"
+    },
+    {
+      "name": "华东交通大学",
+      "province": "江西"
+    },
+    {
+      "name": "南昌航空大学",
+      "province": "江西"
+    },
+    {
+      "name": "江西师范大学",
+      "province": "江西"
+    },
+    {
+      "name": "江西理工大学",
+      "province": "江西"
+    },
+    {
+      "name": "江西财经大学",
+      "province": "江西"
+    },
+    {
+      "name": "华北理工大学",
+      "province": "河北"
+    },
+    {
+      "name": "河北农业大学",
+      "province": "河北"
+    },
+    {
+      "name": "河北地质大学",
+      "province": "河北"
+    },
+    {
+      "name": "河北大学",
+      "province": "河北"
+    },
+    {
+      "name": "河北工程大学",
+      "province": "河北"
+    },
+    {
+      "name": "河北师范大学",
+      "province": "河北"
+    },
+    {
+      "name": "河北科技大学",
+      "province": "河北"
+    },
+    {
+      "name": "河北经贸大学",
+      "province": "河北"
+    },
+    {
+      "name": "石家庄铁道大学",
+      "province": "河北"
+    },
+    {
+      "name": "中原工学院",
+      "province": "河南"
+    },
+    {
+      "name": "信阳师范大学",
+      "province": "河南"
+    },
+    {
+      "name": "南阳师范学院",
+      "province": "河南"
+    },
+    {
+      "name": "安阳师范学院",
+      "province": "河南"
+    },
+    {
+      "name": "河南农业大学",
+      "province": "河南"
+    },
+    {
+      "name": "河南大学",
+      "province": "河南"
+    },
+    {
+      "name": "河南工业大学",
+      "province": "河南"
+    },
+    {
+      "name": "河南师范大学",
+      "province": "河南"
+    },
+    {
+      "name": "河南理工大学",
+      "province": "河南"
+    },
+    {
+      "name": "河南科技大学",
+      "province": "河南"
+    },
+    {
+      "name": "河南财经政法大学",
+      "province": "河南"
+    },
+    {
+      "name": "郑州轻工业大学",
+      "province": "河南"
+    },
+    {
+      "name": "中国计量大学",
+      "province": "浙江"
+    },
+    {
+      "name": "嘉兴大学",
+      "province": "浙江"
+    },
+    {
+      "name": "宁波大学",
+      "province": "浙江"
+    },
+    {
+      "name": "杭州师范大学",
+      "province": "浙江"
+    },
+    {
+      "name": "杭州电子科技大学",
+      "province": "浙江"
+    },
+    {
+      "name": "浙大城市学院",
+      "province": "浙江"
+    },
+    {
+      "name": "浙江万里学院",
+      "province": "浙江"
+    },
+    {
+      "name": "浙江工业大学",
+      "province": "浙江"
+    },
+    {
+      "name": "浙江工商大学",
+      "province": "浙江"
+    },
+    {
+      "name": "浙江师范大学",
+      "province": "浙江"
+    },
+    {
+      "name": "浙江海洋大学",
+      "province": "浙江"
+    },
+    {
+      "name": "浙江理工大学",
+      "province": "浙江"
+    },
+    {
+      "name": "温州大学",
+      "province": "浙江"
+    },
+    {
+      "name": "湖州师范学院",
+      "province": "浙江"
+    },
+    {
+      "name": "海南师范大学",
+      "province": "海南"
+    },
+    {
+      "name": "三峡大学",
+      "province": "湖北"
+    },
+    {
+      "name": "中南民族大学",
+      "province": "湖北"
+    },
+    {
+      "name": "武汉科技大学",
+      "province": "湖北"
+    },
+    {
+      "name": "武汉纺织大学",
+      "province": "湖北"
+    },
+    {
+      "name": "江汉大学",
+      "province": "湖北"
+    },
+    {
+      "name": "湖北大学",
+      "province": "湖北"
+    },
+    {
+      "name": "湖北工业大学",
+      "province": "湖北"
+    },
+    {
+      "name": "长江大学",
+      "province": "湖北"
+    },
+    {
+      "name": "南华大学",
+      "province": "湖南"
+    },
+    {
+      "name": "吉首大学",
+      "province": "湖南"
+    },
+    {
+      "name": "湖南农业大学",
+      "province": "湖南"
+    },
+    {
+      "name": "湖南科技大学",
+      "province": "湖南"
+    },
+    {
+      "name": "湘潭大学",
+      "province": "湖南"
+    },
+    {
+      "name": "长沙理工大学",
+      "province": "湖南"
+    },
+    {
+      "name": "兰州理工大学",
+      "province": "甘肃"
+    },
+    {
+      "name": "华侨大学",
+      "province": "福建"
+    },
+    {
+      "name": "厦门理工学院",
+      "province": "福建"
+    },
+    {
+      "name": "福建师范大学",
+      "province": "福建"
+    },
+    {
+      "name": "福建理工大学",
+      "province": "福建"
+    },
+    {
+      "name": "集美大学",
+      "province": "福建"
+    },
+    {
+      "name": "贵州师范大学",
+      "province": "贵州"
+    },
+    {
+      "name": "大连交通大学",
+      "province": "辽宁"
+    },
+    {
+      "name": "大连大学",
+      "province": "辽宁"
+    },
+    {
+      "name": "大连海洋大学",
+      "province": "辽宁"
+    },
+    {
+      "name": "沈阳化工大学",
+      "province": "辽宁"
+    },
+    {
+      "name": "沈阳工业大学",
+      "province": "辽宁"
+    },
+    {
+      "name": "沈阳理工大学",
+      "province": "辽宁"
+    },
+    {
+      "name": "沈阳航空航天大学",
+      "province": "辽宁"
+    },
+    {
+      "name": "渤海大学",
+      "province": "辽宁"
+    },
+    {
+      "name": "辽宁工程技术大学",
+      "province": "辽宁"
+    },
+    {
+      "name": "辽宁石油化工大学",
+      "province": "辽宁"
+    },
+    {
+      "name": "辽宁科技大学",
+      "province": "辽宁"
+    },
+    {
+      "name": "重庆科技大学",
+      "province": "重庆"
+    },
+    {
+      "name": "西安财经大学",
+      "province": "陕西"
+    },
+    {
+      "name": "陕西科技大学",
+      "province": "陕西"
+    },
+    {
+      "name": "东北石油大学",
+      "province": "黑龙江"
+    },
+    {
+      "name": "哈尔滨师范大学",
+      "province": "黑龙江"
+    },
+    {
+      "name": "哈尔滨理工大学",
+      "province": "黑龙江"
+    }
+  ]
+}

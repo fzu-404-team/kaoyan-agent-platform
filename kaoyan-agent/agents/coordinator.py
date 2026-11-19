@@ -195,6 +195,7 @@ class ConversationCoordinator(StructuredAgent):
         self, req: ConversationRequest, resolution: ConversationResolution
     ) -> dict:
         """Schedule ready experts while keeping display order and model priority stable."""
+        original = req.userInput
         self.base(req, resolution)
         sink = stream_sink.get()
         allowance = CallBudget(EXPERT_MODEL_LIMIT)
@@ -226,7 +227,8 @@ class ConversationCoordinator(StructuredAgent):
         async def execute(step: ExpertStep, completed: dict[str, dict]) -> dict:
             if sink:
                 await sink({"type": "stage", "stage": "正在处理" + labels[step.agent]})
-            return await self._execute_step(req, resolution, step, completed)
+            step_request = req.model_copy(update={"userInput": original}) if step.agent == "SCHOOL" else req
+            return await self._execute_step(step_request, resolution, step, completed)
 
         reasons: dict[str, str] = {}
         try:

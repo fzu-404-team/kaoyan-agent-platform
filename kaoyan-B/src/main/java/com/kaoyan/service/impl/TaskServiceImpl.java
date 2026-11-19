@@ -11,6 +11,7 @@ import com.kaoyan.dto.agent.AgentResponse;
 import com.kaoyan.entity.*;
 import com.kaoyan.feign.AgentFeignClient;
 import com.kaoyan.mapper.*;
+import com.kaoyan.service.RecommendationScoreReferences;
 import com.kaoyan.service.TaskService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,10 +26,15 @@ import java.util.*;
 @RequiredArgsConstructor
 public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements TaskService, ApplicationRunner {
     private static final Set<String> TYPES = Set.of("KNOWLEDGE_QA", "SCHOOL_RECOMMEND", "PRACTICE_SUMMARY", "CHAT", "WRONG_QUESTION_TUTOR");
+    private static final Set<String> EVIDENCE_LEVELS = Set.of("OFFICIAL_VERIFIED", "CATALOG_CHECKED", "USER_APPROVED", "SCORE_HISTORY");
+    private static final String SCORE_RULE = "score-match-v1";
+    private static final Set<String> SCORE_TIERS = Set.of("REACH", "MATCH", "SAFE");
     @org.springframework.beans.factory.annotation.Autowired
     private org.springframework.beans.factory.ObjectProvider<com.kaoyan.learning.LearningProfiles> learningProfiles;
     @org.springframework.beans.factory.annotation.Autowired
     private org.springframework.beans.factory.ObjectProvider<com.kaoyan.learning.LearningRecommendations> learningRecommendations;
+    @org.springframework.beans.factory.annotation.Autowired
+    private RecommendationScoreReferences recommendationScores;
     private final AgentFeignClient agentClient;
     private final AgentProperties agentProps;
     private final UserMapper userMapper;
@@ -53,10 +59,12 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         Set<String> allowed = switch (taskType) {
             case "WRONG_QUESTION_TUTOR" -> Set.of("recordId", "query", "parentTaskId");
             case "PRACTICE_SUMMARY" -> Set.of("sessionId");
-            case "SCHOOL_RECOMMEND", "CHAT" -> Set.of("query", "preferences", "messages");
+            case "SCHOOL_RECOMMEND" -> Set.of("query", "preferences", "messages", "mockScore");
+            case "CHAT" -> Set.of("query", "preferences", "messages");
             default -> Set.of("query", "messages");
         };
         if (!allowed.containsAll(fields.keySet())) throw new ApiException(400, "请求包含不适用的字段");
+        var mock = fields.containsKey("mockScore") ? RecommendationScoreReferences.parseMockScore(fields.get("mockScore")) : null;
         Task task = new Task();
         task.setId(UUID.randomUUID().toString());
         task.setUserId(userId);
@@ -67,6 +75,8 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         Reservation reserved=transactions==null?reserveRequest(userId,taskType,task,fields,provider)
             :transactions.execute(tx -> reserveRequest(userId,taskType,task,fields,provider));
         AgentRequest request=reserved.request();
+        // score-match-v1: the validated form score selects schools in Python; it is not kept in the snapshot.
+        if (mock != null) request.setScoreQuery(Map.of("total", mock.total(), "examCombo", mock.examCombo()));
         Map<String,Object> consent=reserved.consent();
         Map<String,Object> grant=com.kaoyan.security.UserContext.sessionGrant();
         try {
@@ -86,6 +96,8 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
                 result.put("references", response.getReferences());
                 if ("SCHOOL_RECOMMEND".equals(taskType) && request.getLearningSnapshot()!=null)
                     learningRecommendations.getObject().enrich(userId,result,request.getLearningSnapshot(),"MANUAL");
+                if ("SCHOOL_RECOMMEND".equals(taskType) && recommendationScores != null)
+                    recommendationScores.enrich(result, mock);
                 task.setResultPayload(result);
             } else task.setErrorMessage("Agent处理失败，请稍后重试");
         } catch (Exception e) {
@@ -105,6 +117,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         request.setQuotaExempt(store.isQuotaExempt(owner));
         request.setPrivacy(privacy==null?consent:privacy.wire(consent));
         Map<String,Object> snapshot=new LinkedHashMap<>(fields);
+        snapshot.remove("mockScore"); // Only the resulting historical reference and delta enter the task snapshot.
         snapshot.put("profileSnapshot",request.getProfile());
         if(request.getQuestions()!=null)snapshot.put("questions",request.getQuestions());
         if(request.getAttempt()!=null)snapshot.put("attempt",request.getAttempt());
@@ -286,11 +299,51 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
             Set<Object> ids = new HashSet<>();
             for (Object item : candidates) {
                 Map<String, Object> candidate = asMap(item);
+                // 2026-11-19: optional evidence level; only score history may cite nothing (no public link).
+                Object level = candidate.get("evidenceLevel");
+                if (level != null && !EVIDENCE_LEVELS.contains(level)) throw new IllegalStateException("Invalid evidence level");
+                boolean history = "SCORE_HISTORY".equals(level);
                 if (!(candidate.get("programId") instanceof String) || !ids.add(candidate.get("programId"))
-                        || !(candidate.get("sourceIds") instanceof List<?> cited) || cited.isEmpty()
+                        || !(candidate.get("sourceIds") instanceof List<?> cited) || (cited.isEmpty() != history)
                         || !sourceIds.containsAll(cited)) throw new IllegalStateException("Invalid candidate");
+                validateScoreMatch(candidate);
             }
         }
+        if (result.get("unverifiedCandidates") instanceof List<?> clues) {
+            for (Object item : clues) validateScoreMatch(asMap(item));
+        }
+        if (result.containsKey("scoreFilter")) validateScoreFilter(asMap(result.get("scoreFilter")));
+    }
+
+    /** score-match-v1: optional per-candidate tier against historical admission scores. */
+    private static void validateScoreMatch(Map<String, Object> candidate) {
+        if (!candidate.containsKey("scoreMatch")) return;
+        Map<String, Object> match = asMap(candidate.get("scoreMatch"));
+        boolean history = "SCORE_HISTORY".equals(candidate.get("evidenceLevel"));
+        if (!SCORE_RULE.equals(match.get("ruleVersion")) || !SCORE_TIERS.contains(match.get("tier"))
+                || !(match.get("examCombo") instanceof String combo) || !combo.matches("[12][123]408")
+                || !(match.get("college") instanceof String college) || !college.equals(candidate.get("college"))
+                || !(match.get("statYear") instanceof Integer statYear) || !(candidate.get("year") instanceof Integer year)
+                || (history ? statYear.intValue() != year : statYear >= year)
+                || !score(match.get("minScore")) || !score(match.get("medianScore"))
+                || match.containsKey("retestLine") && !score(match.get("retestLine"))
+                || !(match.get("gapToMin") instanceof Number gap) || Math.abs(gap.doubleValue()) > 500
+                || ((Number) match.get("minScore")).doubleValue() > ((Number) match.get("medianScore")).doubleValue())
+            throw new IllegalStateException("Invalid score match");
+    }
+
+    private static void validateScoreFilter(Map<String, Object> filter) {
+        Map<String, Object> counts = asMap(filter.get("counts"));
+        if (!SCORE_RULE.equals(filter.get("ruleVersion"))
+                || !(filter.get("examCombo") instanceof String combo) || !combo.matches("[12][123]408")
+                || !(filter.get("notice") instanceof String notice) || notice.isBlank() || notice.length() > 500
+                || !counts.keySet().equals(Set.of("comparable", "below", "noData", "comboMismatch"))
+                || counts.values().stream().anyMatch(value -> !(value instanceof Integer count) || count < 0))
+            throw new IllegalStateException("Invalid score filter");
+    }
+
+    private static boolean score(Object value) {
+        return value instanceof Number number && number.doubleValue() >= 0 && number.doubleValue() <= 500;
     }
 
     @Override

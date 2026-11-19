@@ -8,6 +8,7 @@ import re
 from collections import Counter
 from threading import Lock
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlparse
 from uuid import NAMESPACE_URL, uuid5
 from pydantic import Field, model_validator
@@ -16,6 +17,7 @@ from schemas import Reference, StrictModel
 from source_policy import ReferenceSourcePolicy
 
 log = logging.getLogger(__name__)
+SEARCHABLE_STATUSES = frozenset({"verified", "user_approved"})
 
 
 class Document(StrictModel):
@@ -31,20 +33,59 @@ class Document(StrictModel):
     subject: str | None = None
     metadata: dict = Field(default_factory=dict)
     reviewStatus: str
+    originalReviewStatus: Literal["catalog_approved", "user_approved"] | None = None
     keywords: list[str] = Field(default_factory=list, max_length=30)
+
+    @property
+    def source_review_status(self) -> str:
+        """Return the status used to enforce the original source's evidence rules."""
+        return self.originalReviewStatus or self.reviewStatus
 
     @model_validator(mode="after")
     def trusted_metadata(self):
-        if self.domain not in {"knowledge", "school"} or self.reviewStatus != "verified":
-            raise ValueError("仅接受已核验的 knowledge/school 资料")
+        if self.originalReviewStatus is not None and self.reviewStatus != "verified":
+            raise ValueError("只有统一状态的资料可保存原审核状态")
+        status = self.source_review_status
+        catalog = status == "catalog_approved" and self.domain == "school"
+        scores = status == "user_approved" and self.domain == "school"
+        if self.domain not in {"knowledge", "school"} or (status != "verified" and not catalog and not scores):
+            raise ValueError("资料领域与审核状态不兼容")
+        if scores:
+            # User-provided statistics have no public source page; an empty URL
+            # keeps them out of link rendering and formal citations.
+            if self.url or self.metadata.get("kind") != "score_statistics":
+                raise ValueError("用户批准的分数统计不得携带链接且须标明类型")
+            if not all((self.id, self.title, self.locator, self.version, self.retrievedAt, self.license)):
+                raise ValueError("来源元数据不完整")
+            return self
         parsed = urlparse(self.url)
-        if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
-            raise ValueError("来源必须为无凭证HTTPS链接")
+        schemes = {"https", "http"} if catalog else {"https"}
+        if parsed.scheme not in schemes or not parsed.hostname or parsed.username is not None or parsed.password is not None:
+            raise ValueError("来源链接格式不合法")
         if not all((self.id, self.title, self.locator, self.version, self.retrievedAt, self.license)):
             raise ValueError("来源元数据不完整")
         return self
 
+    def evidence_level(self) -> str | None:
+        """Return the formal evidence level, or None for clue-only records.
+
+        Catalog records qualify only for ordinary admission with an https source;
+        special plans and http sources remain catalog clues (2026-11-19 contract).
+        """
+        if self.source_review_status == "verified":
+            return "OFFICIAL_VERIFIED"
+        if (
+            self.source_review_status == "catalog_approved"
+            and self.domain == "school"
+            and self.metadata.get("admissionCategory") == "ordinary"
+            and urlparse(self.url).scheme == "https"
+        ):
+            return self.metadata.get("catalogReview")
+        return None
+
     def reference(self):
+        if self.evidence_level() is None:
+            raise ValueError("目录线索不能用作正式引用")
         return Reference(**self.model_dump(include=set(Reference.model_fields) - {"excerpt"}),
                          excerpt=self.content[:400])
 
@@ -65,7 +106,7 @@ def bm25_tokens(text):
 
 
 class BM25Index:
-    """Small in-memory BM25 baseline over the immutable corpus chunks."""
+    """Small in-memory BM25 baseline over the chunks of one domain."""
 
     def __init__(self, chunks, k1=1.5, b=0.75):
         self.chunks, self.k1, self.b = chunks, k1, b
@@ -80,7 +121,7 @@ class BM25Index:
             self.doc_freq.update(set(values))
         self.total = len(chunks)
 
-    def search(self, query, domain, limit=5, subject=None):
+    def search(self, query, limit=5, subject=None):
         if not self.total:
             return []
         candidates = set(bm25_tokens(query))
@@ -89,7 +130,7 @@ class BM25Index:
         wanted = {term for term in candidates if len(term) > 1} or candidates
         ranked = []
         for index, chunk in enumerate(self.chunks):
-            if chunk.domain != domain or (subject and chunk.subject != subject):
+            if subject and chunk.subject != subject:
                 continue
             score = 0.0
             for term in wanted:
@@ -177,17 +218,24 @@ class Corpus:
         self.release_id = "rag-v1-" + self.checksum[:16]
         self.documents = [Document.model_validate(d) for d in records]
         for document in self.documents:
-            policy.validate_url(document.url)
+            # Every record that can become a formal citation passes the host policy.
+            if document.evidence_level() is not None:
+                policy.validate_url(document.url)
         if not self.documents or len({d.id for d in self.documents}) != len(self.documents):
             raise ValueError("资料为空或编号重复")
         self.by_id = {d.id: d for d in self.documents}
         self.chunks = []
         for d in self.documents:
+            # Catalog copies stay structured-only; user-approved score
+            # statistics are searchable under domain=school.
+            if d.source_review_status not in SEARCHABLE_STATUSES:
+                continue
             for start in range(0, len(d.content), 350):
                 self.chunks.append(d.model_copy(update={"id": f"{d.id}#{start // 350}",
                     "content": d.content[start:start+450], "locator": f"{d.locator}；字符{start+1}起"}))
         self.chunk_by_id = {d.id: d for d in self.chunks}
-        self._bm25, self._bm25_lock = None, Lock()
+        self._bm25: dict[str, BM25Index] = {}
+        self._bm25_lock = Lock()
 
     def lexical(self, query, domain, limit=5, subject=None):
         ranked, query_terms = [], terms(query)
@@ -201,11 +249,14 @@ class Corpus:
         return [d for _, d in sorted(ranked, key=lambda r: (-r[0], r[1].id))[:limit]]
 
     def bm25(self, query, domain, limit=5, subject=None):
-        if self._bm25 is None:
+        index = self._bm25.get(domain)
+        if index is None:
             with self._bm25_lock:
-                if self._bm25 is None:
-                    self._bm25 = BM25Index(self.chunks)
-        return self._bm25.search(query, domain, limit, subject)
+                index = self._bm25.get(domain)
+                if index is None:
+                    index = BM25Index([chunk for chunk in self.chunks if chunk.domain == domain])
+                    self._bm25[domain] = index
+        return index.search(query, limit, subject)
 
 
 class FastEmbedEncoder:

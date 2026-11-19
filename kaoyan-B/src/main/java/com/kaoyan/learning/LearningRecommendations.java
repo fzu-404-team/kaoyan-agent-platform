@@ -30,6 +30,7 @@ public class LearningRecommendations {
     private final AgentFeignClient agent;
     private final AgentProperties properties;
     private final ReferenceSourcePolicy sources;
+    private final RecommendationScoreReferences recommendationScores;
     private final TransactionTemplate tx;
     private final HttpClient http=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
     public Map<String,Object> settings(long owner) {
@@ -113,6 +114,7 @@ public class LearningRecommendations {
                 if(!"SUCCESS".equals(response.getStatus()))throw new IllegalStateException("rules_failed");
                 var result=new LinkedHashMap<String,Object>(db.object(response.getResult()));result.put("references",response.getReferences());
                 enrich(owner,result,request.getLearningSnapshot(),settings.get("pendingReason").toString());
+                recommendationScores.enrich(result, null);
                 task.setReleaseId(response.getReleaseId());task.setResultPayload(result);task.setStatus("SUCCESS");task.setErrorMessage(null);success=true;
             }
         } catch(Exception e) {task.setStatus("FAILED");task.setErrorMessage("自动推荐暂时不可用，可稍后重试");}

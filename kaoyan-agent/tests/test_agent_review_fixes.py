@@ -341,7 +341,7 @@ def test_bm25_document_frequency_counts_chunks_not_occurrences(tmp_path):
     path.write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8")
     corpus = Corpus(path, config.RAG_SOURCE_POLICY_FILE)
     corpus.bm25("死锁", "knowledge", 5)
-    index = corpus._bm25
+    index = corpus._bm25["knowledge"]
     assert index.total == 3 and index.doc_freq["死锁"] == 1
     assert all(count <= index.total for count in index.doc_freq.values())
     # The only chunk about the topic is found instead of being scored below zero.

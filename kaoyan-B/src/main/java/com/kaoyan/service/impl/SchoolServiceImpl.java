@@ -9,6 +9,7 @@ import com.kaoyan.mapper.SchoolMapper;
 import com.kaoyan.service.SchoolDetailService;
 import com.kaoyan.service.SchoolService;
 import com.kaoyan.service.SchoolAdmissionMetrics;
+import com.kaoyan.service.SchoolScoreStatistics;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -25,6 +26,7 @@ public class SchoolServiceImpl extends ServiceImpl<SchoolMapper, School> impleme
 
     private final SchoolDetailService schoolDetailService;
     private final SchoolAdmissionMetrics admissionMetrics;
+    private final SchoolScoreStatistics scoreStatistics;
 
     @Override
     public SchoolOptionsVO options() {
@@ -55,6 +57,8 @@ public class SchoolServiceImpl extends ServiceImpl<SchoolMapper, School> impleme
         map.put("school", school);
         map.put("details", details);
         if (!warnings.isEmpty()) map.put("warnings", warnings);
+        var scores = scoreStatistics.forSchool(schoolId);
+        if (scores != null) map.put("scoreStatistics", scores);
         return map;
     }
 

@@ -26,4 +26,6 @@ public class AgentRequest {
     private Map<String, Object> privacy;
     /** Java-owned, optional learning aggregate; never accepted from the public client. */
     private Map<String, Object> learningSnapshot;
+    /** Java-validated {total,examCombo} for score-based school matching (score-match-v1); never stored raw. */
+    private Map<String, Object> scoreQuery;
 }

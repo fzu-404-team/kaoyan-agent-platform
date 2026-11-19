@@ -40,11 +40,34 @@ export interface CitationSupport {
   unsupported: { text: string; reason: string; sourceIds?: string[] }[]
   items?: { text: string; sourceIds: string[]; supported: boolean; reason?: string; ratio?: number }[]
 }
-export interface SchoolCandidate {
+export interface SchoolProgram {
   programId: string; school: string; college: string; major: string; majorCode: string; year: number
   degreeType: 'academic' | 'professional'; region: string; studyMode: string; examSubjects: string[]
+  track?: string
+  admissionCategory?: 'ordinary' | 'special'
+  /** score-match-v1 (2026-11-19): present only on score-based recommendations. */
+  scoreMatch?: ScoreMatch
+}
+export interface ScoreMatch {
+  ruleVersion: 'score-match-v1'; tier: 'REACH' | 'MATCH' | 'SAFE'; statYear: number; college: string
+  examCombo: string; minScore: number; medianScore: number; retestLine?: number; gapToMin: number
+}
+export interface ScoreFilter {
+  ruleVersion: 'score-match-v1'; examCombo: string; notice: string
+  counts: { comparable: number; below: number; noData: number; comboMismatch: number }
+}
+export interface SchoolCandidate extends SchoolProgram {
   matchedConditions: string[]; pendingChecks: string[]; sourceIds: string[]; explanation: string
   citationSupport?: CitationSupport
+  /** 2026-11-19 additive field; older results omit it and are all officially verified. */
+  evidenceLevel?: 'OFFICIAL_VERIFIED' | 'CATALOG_CHECKED' | 'USER_APPROVED' | 'SCORE_HISTORY'
+  catalogReview?: 'CATALOG_CHECKED' | 'USER_APPROVED'
+}
+export interface SchoolCatalogCandidate extends SchoolProgram {
+  catalogReview: 'CATALOG_CHECKED' | 'USER_APPROVED'
+}
+export interface RecommendationScoreReference {
+  programId: string; year: number; retestLine: number; examCombo: string; gap?: number | null
 }
 export interface AssistantAction {
   id: string; type: string; status: 'PENDING' | 'SUCCESS' | 'DISMISSED' | 'FAILED'; title: string
@@ -89,10 +112,13 @@ export interface TaskResult {
   learningSnapshot?: { profileRevision: number; referenceScore: number | null; coverage: number; blueprintVersion: string; calibrated: false }
   triggerReason?: string
   historicalComparisons?: HistoricalComparison[]
+  scoreReferences?: RecommendationScoreReference[]
+  scoreFilter?: ScoreFilter
   outcome: 'COMPLETED' | 'NEEDS_INPUT' | 'UNSUPPORTED'; answer: string
   resolvedTaskType: Task['taskType']; explanationMode: 'rules' | 'ai' | 'fallback'; fallbackReason?: FallbackReason
   releaseId: string; references: SourceReference[]; followUp?: string[]; notice?: string
-  candidates?: SchoolCandidate[]; coverage?: string; weakPoints?: string[]; accuracy?: number
+  candidates?: SchoolCandidate[]; unverifiedCandidates?: SchoolCatalogCandidate[]
+  coverage?: string; weakPoints?: string[]; accuracy?: number
   recordId?: number; standardAnswer?: string; userAnswer?: string; questionVersion?: number
   evidence?: AssistantEvidence[]; actions?: AssistantAction[]
   navigation?: { target: string }[]
@@ -139,6 +165,26 @@ export interface SchoolWarning {
   message: string
 }
 
+export type ScoreFlag = 'POSSIBLE_SAME_POOL' | 'SAME_SCORES_DIFFERENT_CODES' | 'MAX_BELOW_MEDIAN'
+  | 'MIN_ABOVE_MEDIAN' | 'AVG_OUT_OF_RANGE' | 'LINE_ABOVE_MIN'
+
+/** User-provided, user-approved admission score statistics; not official data. */
+export interface ScoreStatistic {
+  id: number
+  year: number
+  college: string
+  majorCode: string | null
+  majorName: string
+  examCombo: string
+  retestLine: number | null
+  minScore: number
+  medianScore: number
+  avgScore: number | null
+  maxScore: number | null
+  admittedCount: number
+  flags: ScoreFlag[]
+}
+
 export interface SchoolCatalog {
   school: School | null
   targetYear: number | null
@@ -146,6 +192,7 @@ export interface SchoolCatalog {
   details: SchoolDetail[]
   total: number
   warnings: SchoolWarning[]
+  scoreStatistics?: { total: number; notice: string; items: ScoreStatistic[] }
 }
 
 export interface AdmissionMetricSource {

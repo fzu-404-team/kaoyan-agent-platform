@@ -1,10 +1,11 @@
 ﻿import request from './request'
-import type { School, SchoolDetail, SchoolWarning } from '@/types/api'
+import type { School, SchoolDetail, SchoolWarning, ScoreStatistic } from '@/types/api'
 
 export interface SchoolDetailVO {
   school: School
   details: SchoolDetail[]
   warnings?: SchoolWarning[]
+  scoreStatistics?: ScoreStatistic[]
 }
 
 export interface SchoolOptions {

@@ -1,5 +1,6 @@
 package com.kaoyan.service;
 
+import com.kaoyan.dto.response.ScoreStatisticVO;
 import com.kaoyan.entity.School;
 import com.kaoyan.entity.SchoolDetail;
 import lombok.RequiredArgsConstructor;
@@ -20,12 +21,35 @@ import java.util.regex.Pattern;
 public class SchoolCatalogService {
     private final SchoolService schools;
     public static final String RELEASE = "school-catalog-v1";
+    static final int SCORE_LIMIT = 30;
+
+    /** Mirrors Python SCORE_TRIGGER / SCORE_EXCLUSION in agents/planning.py. */
+    public static final Pattern SCORE = Pattern.compile(
+        "复试线|分数线|录取分数|录取分|最低分|中位分|平均分|最高分|多少分|录取人数");
+    private static final Pattern SCORE_EXCLUSION = Pattern.compile(
+        "不要|不必|不需要|别查|别帮|示例|例如|这句话|这个指令|如何|怎么|功能介绍|假设|官网|网址|链接|核对|核验");
+
+    /** One named school plus a score word; compound turns keep their original pipeline. */
+    public static boolean scoreRequested(String query) {
+        return SCORE.matcher(query).find() && !SCORE_EXCLUSION.matcher(query).find()
+            && !AdmissionLinksValidator.compound(query) && !scoreSchoolNames(query).isEmpty();
+    }
+
+    /** Universities first; a "××学院" in the same turn is read as a department. */
+    public static Set<String> scoreSchoolNames(String query) {
+        Set<String> names = AdmissionLinksValidator.explicitSchoolNames(query);
+        Set<String> universities = new LinkedHashSet<>();
+        for (String name : names) if (name.endsWith("大学")) universities.add(name);
+        return universities.isEmpty() ? names : universities;
+    }
 
     /** Build a local plan before any provider or Python call. */
     public static Map<String, Object> plan(String query) {
-        if (!AdmissionLinksValidator.requested(query) || query.matches("(?s).*(官网|网址|链接|核对|核验).*"))
-            return null;
-        Set<String> names = AdmissionLinksValidator.explicitSchoolNames(query);
+        boolean admission = AdmissionLinksValidator.requested(query);
+        boolean score = !admission && scoreRequested(query);
+        if (!admission && !score) return null;
+        if (admission && query.matches("(?s).*(官网|网址|链接|核对|核验).*")) return null;
+        Set<String> names = score ? scoreSchoolNames(query) : AdmissionLinksValidator.explicitSchoolNames(query);
         Set<String> years = matches(query, "(?<!\\d)(20\\d{2}|2100)(?:年)?(?!\\d)", 1);
         Set<String> majors = matches(query, "(?<!\\d)\\d{6}(?!\\d)", 0);
         Map<String, Object> plan = new LinkedHashMap<>();
@@ -145,14 +169,55 @@ public class SchoolCatalogService {
                 .filter(item -> item instanceof com.kaoyan.dto.response.SchoolWarning warning
                         && (warning.detailId() == null || visible.contains(warning.detailId()))).toList() : List.of();
         catalog.put("warnings", warnings);
-        result.put("schoolCatalog", catalog);
-        result.put("outcome", "COMPLETED");
-        result.put("answer", matching.isEmpty()
+        String query = Objects.toString(plan.get("standaloneQuery"), "");
+        boolean scoreQuestion = scoreRequested(query);
+        String detailsText = matching.isEmpty()
                 ? "已找到" + name + "，但库内没有符合本次年份及专业条件的招生记录；未替换为其他年份。"
                 : "已找到" + name + "库内" + (year == null ? "" : year + "年") + matching.size()
-                    + "条专业记录，以下展示前" + Math.min(10, matching.size()) + "条。已有资料及待核实状态如下。");
+                    + "条专业记录，以下展示前" + Math.min(10, matching.size()) + "条。已有资料及待核实状态如下。";
+        String scoreText;
+        if (detail.get("scoreStatistics") instanceof List<?> stored) {
+            @SuppressWarnings("unchecked")
+            var scores = filterScores((List<ScoreStatisticVO>) stored, lookup, query);
+            Map<String, Object> block = new LinkedHashMap<>();
+            block.put("total", scores.size());
+            block.put("notice", SchoolScoreStatistics.NOTICE);
+            block.put("items", scores.stream().limit(SCORE_LIMIT).toList());
+            catalog.put("scoreStatistics", block);
+            scoreText = scores.isEmpty()
+                    ? name + "暂无符合本次条件的往年录取分数统计。"
+                    : "收录" + name + "往年录取分数统计" + scores.size() + "条，展示前"
+                        + Math.min(SCORE_LIMIT, scores.size()) + "条。" + SchoolScoreStatistics.NOTICE;
+        } else {
+            scoreText = scoreQuestion ? "院校库暂未提供录取分数统计。" : null;
+        }
+        result.put("schoolCatalog", catalog);
+        result.put("outcome", "COMPLETED");
+        result.put("answer", scoreText == null ? detailsText
+                : scoreQuestion ? scoreText + "\n" + detailsText : detailsText + "\n" + scoreText);
         if (links == null) result.put("notice", "该院校未登记官网确认链接，请通过院校官方渠道确认。");
         return result;
+    }
+
+    /** Explicit year and code filter exactly; otherwise major names named in the question narrow the list. */
+    static List<ScoreStatisticVO> filterScores(List<ScoreStatisticVO> rows, Map<String, Object> lookup, String query) {
+        Integer year = lookup.get("year") instanceof Number value ? value.intValue() : null;
+        Object code = lookup.get("majorCode");
+        var scoped = rows.stream().filter(row -> year == null || year.equals(row.year()))
+                .filter(row -> code == null || code.equals(row.majorCode())).toList();
+        if (code != null) return scoped;
+        Set<String> named = new LinkedHashSet<>();
+        for (ScoreStatisticVO row : scoped) {
+            String core = majorCore(row.majorName());
+            if (core.length() >= 2 && query.contains(core)) named.add(core);
+        }
+        return named.isEmpty() ? scoped
+                : scoped.stream().filter(row -> named.contains(majorCore(row.majorName()))).toList();
+    }
+
+    /** Major name without bracketed qualifiers or spaces, e.g. 计算机技术（非全） to 计算机技术. */
+    public static String majorCore(String major) {
+        return major == null ? "" : major.replaceAll("[（(][^）)]*[）)]?", "").replaceAll("\\s+", "");
     }
 
     private static Map<String, Object> publicDetail(SchoolDetail row) {

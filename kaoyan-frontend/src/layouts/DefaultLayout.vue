@@ -34,6 +34,7 @@
         <div class="menu-group">
           <div class="group-label">资源</div>
           <el-menu-item :index="navigationPath('SCHOOLS')"><el-icon><School /></el-icon><span>院校库</span></el-menu-item>
+          <el-menu-item index="/school-recommendations"><el-icon><Compass /></el-icon><span>择校推荐</span></el-menu-item>
           <el-menu-item :index="navigationPath('DOCUMENTS')"><el-icon><Folder /></el-icon><span>备考资料</span></el-menu-item>
         </div>
         <div v-if="userStore.isAdmin" class="menu-group">
@@ -84,7 +85,7 @@ import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
 import {
   HomeFilled, EditPen, Notebook, Star, TrendCharts,
-  School, Folder, Setting, Document, ChatDotRound
+  School, Folder, Setting, Document, ChatDotRound, Compass
 } from '@element-plus/icons-vue'
 
 const assistant = useAssistantStore()
@@ -102,6 +103,7 @@ const activeMenu = computed(() => route.path.startsWith('/admin/')
 const crumbMap: Record<string, string> = {
   '': '首页', practice: '刷题', wrong: '错题本', favorite: '收藏',
   stat: '学习统计', schools: '院校库', documents: '备考资料', notes: '个人笔记',
+  'school-recommendations': '择校推荐',
   profile: '个人中心', tasks: 'Agent 助手',
   'admin/questions': '题目录入与审核', 'admin/documents': '资料管理'
 }

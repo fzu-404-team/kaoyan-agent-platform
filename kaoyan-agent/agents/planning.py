@@ -7,6 +7,7 @@ from pydantic import GetJsonSchemaHandler, model_validator
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import CoreSchema
 
+from agents.school_input import SchoolConditionQuotes
 from core.admission_contract import AdmissionSource, load_sources
 from intents import ConditionExtractor, IntentResolver, chinese_number, local_learning_plan, positive_request
 from schemas import (
@@ -48,6 +49,8 @@ COMMAND_PREFIX = re.compile(
 
 class ModelConversationResolution(ConversationResolution):
     """Parse model plans without allowing them to authorize admission requests."""
+
+    schoolQuotes: SchoolConditionQuotes | None = None
 
     @classmethod
     def __get_pydantic_json_schema__(
@@ -183,12 +186,39 @@ def admission_compound(text: str) -> bool:
     return bool(re.search(ADMISSION_COMPOUND, text))
 
 
+# Score questions about one named school reuse SCHOOL_LOOKUP. Java
+# SchoolCatalogService.SCORE / SCORE_EXCLUSION mirror both patterns exactly.
+SCORE_TRIGGER = r"复试线|分数线|录取分数|录取分|最低分|中位分|平均分|最高分|多少分|录取人数"
+SCORE_EXCLUSION = ADMISSION_EXCLUSION + r"|官网|网址|链接|核对|核验"
+
+
+def score_school_names(text: str) -> list[str]:
+    """Universities first; a "××学院" in the same turn is read as a department."""
+    names = [name for name, _ in explicit_schools(text)]
+    universities = [name for name in names if name.endswith("大学")]
+    return universities or names
+
+
+def score_requested(text: str) -> bool:
+    """One named school plus a score word; compound turns keep their original pipeline."""
+    return (
+        bool(re.search(SCORE_TRIGGER, text))
+        and not re.search(SCORE_EXCLUSION, text)
+        and not admission_compound(text)
+        and bool(score_school_names(text))
+    )
+
+
 def school_lookup_plan(req: ConversationRequest) -> ConversationResolution | None:
     """Resolve public catalog lookups locally; database reads belong only to Java."""
     text = req.userInput
-    if not admission_requested(text) or re.search(r"官网|网址|链接|核对|核验", text):
+    admission = admission_requested(text)
+    score = not admission and score_requested(text)
+    if not admission and not score:
         return None
-    schools = explicit_schools(text)
+    if admission and re.search(r"官网|网址|链接|核对|核验", text):
+        return None
+    schools = [(name, None) for name in score_school_names(text)] if score else explicit_schools(text)
     years = set(re.findall(r"(?<!\d)(20\d{2}|2100)(?:年)?(?!\d)", text))
     majors = set(re.findall(r"(?<!\d)\d{6}(?!\d)", text))
     clarification = None
@@ -336,7 +366,7 @@ def local_orchestration(req: ConversationRequest) -> ConversationResolution | No
     fields["reads"] = sorted(reads)
     if not practice:
         fields.update(operation="NONE", target="selected")
-    if ConditionExtractor.conflicting(text):
+    if not school and ConditionExtractor.conflicting(text):
         fields.update(
             clarification="本轮出现多个年份或学位条件，请明确希望采用的条件。",
             operation="NONE",

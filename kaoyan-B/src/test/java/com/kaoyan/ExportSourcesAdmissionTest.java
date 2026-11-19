@@ -57,6 +57,25 @@ class ExportSourcesAdmissionTest {
         return task;
     }
 
+    @Test void generalKnowledgeExportKeepsUnverifiedLabel() {
+        Task task = new Task();
+        task.setId("general-knowledge-export");
+        task.setStatus("SUCCESS");
+        task.setReleaseId("rag-v1-0000000000000000");
+        String label = "通用 AI 解释，未经过审核资料核对";
+        task.setResultPayload(Map.of(
+            "outcome", "COMPLETED",
+            "explanationMode", "fallback",
+            "resolvedTaskType", "KNOWLEDGE_QA",
+            "answer", label + "\n\nDNS 可解析域名。",
+            "notice", label + "。",
+            "references", List.of()));
+        String markdown = sources(task).build(
+            1L, new Source("TASK_RESULT", null, null, task.getId(), "ANSWER")).markdown();
+        assertTrue(markdown.contains(label + "\n\nDNS 可解析域名。"));
+        assertTrue(markdown.contains("本次回答已降级，回答范围见正文与提示。"));
+    }
+
     @Test void legacyExportUsesRegisteredLinksOnlyAndHidesOldCheckFields() {
         Task task = task(List.of("https://evil.invalid/old-admission"), "nau");
         Content content = sources(task).build(1L, new Source("TASK_RESULT", null, null, task.getId(), "ANSWER"));
@@ -151,6 +170,28 @@ class ExportSourcesAdmissionTest {
             assertTrue(text.contains("采集待核实"), format);
             assertTrue(text.indexOf("库内信息") < text.indexOf("招生官网链接"), format);
         }
+    }
+
+    @Test void savedScoreStatisticsExportWithNoticeAndChineseFlags() throws Exception {
+        Task task = new Task(); task.setId("score-catalog-export"); task.setStatus("SUCCESS");
+        task.setReleaseId("school-catalog-v1");
+        task.setResultPayload(json.convertValue(json.readTree("""
+            {"outcome":"COMPLETED","explanationMode":"rules","resolvedTaskType":"CHAT","answer":"收录往年录取分数统计。",
+             "references":[],
+             "schoolCatalog":{"school":{"id":21,"name":"深圳大学","province":"广东","level":null},
+               "targetYear":2027,"availableYears":[],"total":0,"warnings":[],"details":[],
+               "scoreStatistics":{"total":1,"notice":"用户提供数据，经用户审核批准，非学校官网原文。",
+                 "items":[{"id":1,"year":2026,"college":"计算机与软件学院","majorCode":"085404","majorName":"计算机技术",
+                   "examCombo":"11408","retestLine":347,"minScore":347,"medianScore":367.5,"avgScore":null,"maxScore":401,
+                   "admittedCount":29,"flags":["POSSIBLE_SAME_POOL","UNKNOWN"]}]}}}
+            """), Map.class));
+        String markdown = sources(task).build(1L, new Source("TASK_RESULT", null, null, task.getId(), "ANSWER")).markdown();
+        assertTrue(markdown.contains("往年录取分数统计（共 1 条）"));
+        assertTrue(markdown.contains("非学校官网原文"));
+        assertTrue(markdown.contains("中位 367.5"));
+        assertTrue(markdown.contains("平均 未记录"));
+        assertTrue(markdown.contains("可能与其他专业同一录取池、数据待核对"));
+        assertFalse(markdown.contains("POSSIBLE_SAME_POOL"));
     }
 
     @Test void missingCatalogExportsGapAndLinksWithoutInventingSchoolDetails() throws Exception {

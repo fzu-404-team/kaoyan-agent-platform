@@ -45,6 +45,7 @@ class SchoolCatalogServiceTest {
         assertEquals(10, latest.path("schoolCatalog").path("details").size());
         assertEquals(1, latest.path("schoolCatalog").path("details").get(0).path("id").asInt());
         assertTrue(latest.has("admissionLinks"));
+        assertFalse(latest.path("schoolCatalog").has("scoreStatistics")); // no V16 table in this context
         assertEquals("采集待核实", latest.path("schoolCatalog").path("details").get(0).path("remark").asText());
         var profile = json.valueToTree(catalog.answer(plan, Map.of("examYear", 2026), Map.of("majorCodes", List.of("081200"))));
         assertEquals(2026, profile.path("schoolCatalog").path("targetYear").asInt());

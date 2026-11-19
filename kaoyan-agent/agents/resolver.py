@@ -1,5 +1,6 @@
 """One bounded plan resolver for conversation and synchronous compatibility callers."""
 
+import asyncio
 import logging
 import re
 from typing import TYPE_CHECKING
@@ -13,6 +14,15 @@ from agents.planning import (
     local_orchestration,
     school_lookup_plan,
 )
+from agents.school_input import (
+    NATURAL_CONDITION,
+    SCHOOL_COMMAND,
+    SUBJECTS,
+    SchoolConditionQuotes,
+    merge_form_conditions,
+    school_route,
+    stated_conditions,
+)
 from core.errors import MODEL_FAILURES, InvalidModelOutput, failure_reason
 from intents import (
     REGIONS,
@@ -25,6 +35,7 @@ from intents import (
 from learning import has_scope, model_allowed, model_messages
 from prompts import get
 from schemas import ChatRequest, ConversationConditions, ConversationRequest, ConversationResolution
+from score_query import combo_supplement
 
 if TYPE_CHECKING:
     from workflows import Workflows
@@ -42,6 +53,11 @@ SUPPLEMENT_FILLER = re.compile(
     r"优先|都可以|都行|也行|可以|地区|入学|就|只|仅|选|考|要|我|想|吧|的|了|啊|省|市|年|届|"
     r"[\s，,、。；;！!和与或及]"
 )
+SCHOOL_FILLER = re.compile(
+    r"请比较符合条件的院校|帮我|请|推荐|满足|符合|条件|比较|根据|档案|偏好|院校|学校|专业|"
+    r"择校|报考|选择|目标|非全日制|全日制|只接受|只去|只看|必须在|必须是|"
+    r"地区不限|不限地区|考试科目|科目|统考|初试|408|并|[,，。！？?！\s]"
+)
 
 
 def clarify(plan: ConversationResolution, message: str) -> ConversationResolution:
@@ -58,6 +74,7 @@ def validate_plan(
 ) -> ConversationResolution:
     """Reject inconsistent executable plans, including mutated prepared objects."""
     wire = plan.model_dump(by_alias=True)
+    wire.pop("schoolQuotes", None)
     wire["conditionPatch"] = plan.conditionPatch.model_dump(by_alias=True, exclude_unset=True)
     plan = ConversationResolution.model_validate(wire)
     names = {step.agent for step in plan.steps}
@@ -162,6 +179,14 @@ class PlanResolver:
             clarification=clarification,
         )
 
+    def _plain_school_command(self, text: str) -> bool:
+        """Recognize a recommendation composed entirely of supported literal conditions."""
+        literals = {p.major for p, _ in self.engine.programs if p.major} | set(SUBJECTS)
+        for value in sorted(literals, key=len, reverse=True):
+            text = text.replace(value, "")
+        text = SCHOOL_FILLER.sub("", SUPPLEMENT_CONDITIONS.sub("", text))
+        return not SUPPLEMENT_FILLER.sub("", text)
+
     async def resolve(
         self, req: ConversationRequest, *, allow_model: bool = True,
     ) -> ConversationResolution:
@@ -190,10 +215,22 @@ class PlanResolver:
             local = ConversationResolution(action="WRONG_QUESTION_TUTOR", standaloneQuery=req.userInput)
         if local is None:
             local = IntentResolver.local_plan(req.userInput, req.pageContext, req.document is not None)
-        if local is None and self.condition_supplement(req.userInput):
+        if local is None and (self.condition_supplement(req.userInput) or combo_supplement(req.userInput)):
             # A generic model clarification must not discard explicit conditions.
             local = self.fallback(req)
-        if local is None and allow_model and model_allowed(req, self.engine.settings):
+        school_needs_parse = False
+        if (local is None and SCHOOL_COMMAND.search(req.userInput)
+                and not re.search(r"是什么|是什么意思|有什么区别|如何使用|怎么操作", req.userInput)):
+            candidate = self.fallback(req)
+            if candidate.action == "SCHOOL_RECOMMEND":
+                local = candidate
+                school_needs_parse = not self._plain_school_command(req.userInput)
+        local_school = local is not None and school_route(local.action, {step.agent for step in local.steps})
+        quotes = None
+        if ((local is None or school_needs_parse
+             or local_school and local.steps and NATURAL_CONDITION.search(req.userInput))
+                and allow_model and model_allowed(req, self.engine.settings)):
+            prior = local
             try:
                 parsed = await self.engine.model.generate(
                     get("conversation_resolver_0"),
@@ -207,17 +244,31 @@ class PlanResolver:
                     },
                     ModelConversationResolution, router=True,
                 )
-                local = parsed
-                if local.operation != "NONE":
+                if parsed.operation != "NONE":
                     raise InvalidModelOutput("model_operation_forbidden")
-                if local.clarification:
-                    local = clarify(local, local.clarification)
-                local = validate_plan(local, req)
+                quotes = getattr(parsed, "schoolQuotes", None)
+                if quotes is not None:
+                    quotes = SchoolConditionQuotes.model_validate(quotes)
+                if local is None:
+                    local = parsed
+                    if local.clarification and school_route(local.action, {step.agent for step in local.steps}):
+                        local = local.model_copy(update={"clarification": None})
+                    elif local.clarification:
+                        local = clarify(local, local.clarification)
+                    local = validate_plan(local, req)
             except MODEL_FAILURES as error:
                 log.warning("planFailure=%s reason=%s", type(error).__name__, failure_reason(error))
-                local = self.fallback(req)
+                quotes = None
+                local = prior or self.fallback(req)
         if local is None:
             local = self.fallback(req)
+        if school_route(local.action, {step.agent for step in local.steps}):
+            local = local.model_copy(update={
+                "conditionPatch": stated_conditions(req.userInput, self.engine.programs, quotes),
+                **({"standaloneQuery": req.userInput} if local.action == "SCHOOL_RECOMMEND" else {}),
+            })
+        elif isinstance(local, ModelConversationResolution) or local.conditionPatch.model_fields_set:
+            local = local.model_copy(update={"conditionPatch": ConversationConditions()})
         if local.action == "DOCUMENT_UPDATE" and req.document is None:
             local = clarify(local, "请先选择要修改的个人笔记。")
         document_intent = local_document_plan(req.userInput, req.pageContext, req.document is not None)
@@ -226,6 +277,27 @@ class PlanResolver:
         if local.clarification:
             local = clarify(local, local.clarification)
         return validate_plan(local, req)
+
+    async def independent_school(self, req: ChatRequest) -> tuple[ChatRequest, list[str]]:
+        """Parse at most once under the synchronous task's existing model budget."""
+        text = req.userInput or ""
+        quotes = None
+        if (NATURAL_CONDITION.search(text) and not self._plain_school_command(text)
+                and model_allowed(req, self.engine.settings)):
+            try:
+                parsed = await asyncio.wait_for(
+                    self.engine.model.generate(
+                        get("school_condition_quotes"), {"input": text},
+                        SchoolConditionQuotes, router=True,
+                    ),
+                    timeout=self.engine.settings.CONVERSATION_PARSE_TIMEOUT,
+                )
+                if not isinstance(parsed, SchoolConditionQuotes):
+                    raise InvalidModelOutput("school_conditions_schema")
+                quotes = parsed
+            except MODEL_FAILURES as error:
+                log.warning("schoolParseFailure=%s reason=%s", type(error).__name__, failure_reason(error))
+        return merge_form_conditions(req, stated_conditions(text, self.engine.programs, quotes))
 
     async def legacy(self, req: ChatRequest, *, allow_model: bool) -> str:
         """Project a unified plan into the capabilities of the old sync endpoint."""

@@ -146,6 +146,30 @@ test('catalog information precedes confirmation links and survives reload', asyn
   await page.screenshot({ path: test.info().outputPath('catalog-before-links.png'), fullPage: true })
 })
 
+test('stored score statistics render inside the chat catalog and survive reload', async ({ page }) => {
+  await show(page, {
+    outcome: 'COMPLETED', answer: '收录测试院校往年录取分数统计2条，展示前1条。', references: [], resolvedTaskType: 'CHAT',
+    explanationMode: 'rules', releaseId: 'school-catalog-v1', conditions: {},
+    schoolCatalog: {
+      school: { id: 12, name: '测试院校', province: '广东', level: null }, targetYear: 2027,
+      availableYears: [], total: 0, warnings: [], details: [],
+      scoreStatistics: { total: 2, notice: '用户提供数据，经用户审核批准，非学校官网原文。', items: [{
+        id: 1, year: 2026, college: '计算机学院', majorCode: '085404', majorName: '计算机技术', examCombo: '22408',
+        retestLine: 320, minScore: 321, medianScore: 345.5, avgScore: 346, maxScore: 398, admittedCount: 40, flags: ['LINE_ABOVE_MIN'] }] }
+    }
+  })
+  for (const reload of [false, true]) {
+    if (reload) await page.reload()
+    const catalog = page.getByRole('region', { name: '库内院校信息' })
+    await expect(catalog.getByRole('heading', { name: '往年录取分数统计' })).toBeVisible()
+    await expect(catalog).toContainText('非学校官网原文')
+    await expect(catalog).toContainText('共 2 条，展示前 1 条。')
+    await expect(catalog).toContainText('345.5')
+    await expect(catalog).toContainText('复试线高于最低分')
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+})
+
 test('registered links do not hide a missing catalog record', async ({ page }) => {
   await show(page, {
     outcome: 'UNSUPPORTED', answer: '院校库尚未收录该院校的信息。', references: [], resolvedTaskType: 'CHAT',

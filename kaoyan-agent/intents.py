@@ -6,6 +6,7 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from schemas import AssistantPageContext, ConversationConditions, ConversationResolution
+from score_query import combo_supplement, score_school_request
 
 
 REGIONS = (
@@ -194,7 +195,10 @@ class IntentResolver:
                 re.search(
                     r"择校|院校|报考|推荐学校|推荐大学|推荐专业|学硕|专硕", positive
                 )
-            ),
+            )
+            # score-match-v1: “我估分320，推荐哪些学校” and a bare “英一数一” follow-up.
+            or score_school_request(positive)
+            or combo_supplement(positive),
             learning=any(term in positive for terms in READ_TERMS.values() for term in terms),
             knowledge=bool(re.search(r"解释|讲解|知识问答", positive))
             or any(word.lower() in positive.lower() for word in keywords),

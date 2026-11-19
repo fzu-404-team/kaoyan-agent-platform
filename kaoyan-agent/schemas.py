@@ -68,6 +68,16 @@ class QuestionSnapshot(StrictModel):
     correct: bool
 
 
+class ScoreQuery(StrictModel):
+    """A total exam score already validated by Java for score-based school matching.
+
+    `examCombo` encodes English (1/2), math (1/2/3) and 408, e.g. "11408".
+    """
+
+    total: int = Field(ge=0, le=500)
+    examCombo: str = Field(pattern=r"^[12][123]408$")
+
+
 class LearningSnapshot(StrictModel):
     profileRevision: int = Field(ge=0)
     referenceScore: float | None = Field(
@@ -125,6 +135,7 @@ class ChatRequest(StrictModel):
     attempt: TutoringAttempt | None = None
     privacy: PrivacyContext = Field(default_factory=PrivacyContext)
     learningSnapshot: LearningSnapshot | None = None
+    scoreQuery: ScoreQuery | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -164,6 +175,8 @@ class ChatRequest(StrictModel):
             raise ValueError("该任务不接受择校偏好")
         if self.learningSnapshot is not None and self.taskType != "SCHOOL_RECOMMEND":
             raise ValueError("仅择校接受学情聚合快照")
+        if self.scoreQuery is not None and self.taskType != "SCHOOL_RECOMMEND":
+            raise ValueError("仅择校接受分数")
         if len({q.id for q in self.questions}) != len(self.questions):
             raise ValueError("题目快照不能重复")
         return self

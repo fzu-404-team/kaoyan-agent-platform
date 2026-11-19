@@ -13,6 +13,11 @@
       <SchoolMetric :metric="row.admissionMetrics?.cutoffReference" kind="cutoff" :legacy-value="row.scoreLine" :legacy-year="row.year" />
       <p v-if="row.remark" class="remark">原登记备注：{{ row.remark }}</p>
     </article>
+    <template v-if="catalog.scoreStatistics">
+      <h4 class="score-heading">往年录取分数统计</h4>
+      <p v-if="!catalog.scoreStatistics.items.length">暂无符合本次条件的录取分数统计。</p>
+      <SchoolScoreTable v-else :rows="catalog.scoreStatistics.items" :notice="catalog.scoreStatistics.notice" :total="catalog.scoreStatistics.total" />
+    </template>
     <router-link :to="`/schools/${catalog.school.id}`">查看完整院校详情</router-link>
   </section>
 </template>
@@ -20,6 +25,7 @@
 <script setup lang="ts">
 import type { SchoolCatalog } from '@/types/api'
 import SchoolMetric from './SchoolMetric.vue'
+import SchoolScoreTable from './SchoolScoreTable.vue'
 
 defineProps<{ catalog: SchoolCatalog }>()
 </script>
@@ -31,4 +37,5 @@ defineProps<{ catalog: SchoolCatalog }>()
 .program :deep(.school-metric) { margin: 10px 0; }
 .warning { color: var(--el-color-warning-dark-2); }
 .remark { white-space: pre-wrap; }
+.score-heading { margin: 16px 0 8px; }
 </style>

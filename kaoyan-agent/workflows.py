@@ -3,15 +3,16 @@
 from agents.knowledge import KnowledgeAgent
 from agents.results import finalize_result
 from agents.school import SchoolAgent
+from agents.school_input import school_needs_input
 from agents.summary import SummaryAgent
 from config import Settings
 from core.model import ModelClient
 from agents.resolver import PlanResolver
 from retrieval import Corpus, Retriever
-from schemas import ChatRequest
+from schemas import ChatRequest, ConversationRequest
 from tools.knowledge import KnowledgeSearchTool
 from tools.registry import StrictToolRegistry, ValidatedTool
-from tools.schools import Admission
+from tools.schools import Admission, school_regions, score_programs
 
 class Workflows:
     """Keep old task callers and dependency injection points stable."""
@@ -44,10 +45,18 @@ class Workflows:
         self.programs = [
             (Admission.model_validate(d.metadata), d)
             for d in corpus.documents
-            if d.domain == "school"
+            if d.domain == "school" and d.source_review_status != "user_approved"
         ]
+        self.score_programs = score_programs(corpus.documents, school_regions(self.programs))
         if len({p.programId for p, _ in self.programs}) != len(self.programs):
             raise ValueError("招生专业编号重复")
+        for program, document in self.programs:
+            if (program.catalogReview is not None) != (document.source_review_status == "catalog_approved"):
+                raise ValueError("招生目录审核状态不一致")
+            if program.catalogReview and (
+                not program.admissionCategory or program.studyMode not in {"full_time", "part_time"}
+            ):
+                raise ValueError("招生目录缺少招考范围")
 
     async def qa(self, req: ChatRequest) -> dict:
         """Execute one knowledge expert."""
@@ -71,7 +80,10 @@ class Workflows:
         if task_type == "CHAT":
             task_type = await self.resolve(req, allow_model=False)
         if task_type == "SCHOOL_RECOMMEND":
-            result = await self.schools(req)
+            issues = []
+            if req.taskType == "SCHOOL_RECOMMEND" and not isinstance(req, ConversationRequest):
+                req, issues = await PlanResolver(self).independent_school(req)
+            result = school_needs_input(issues) if issues else await self.schools(req)
         elif task_type == "KNOWLEDGE_QA":
             result = await self.qa(req)
         elif task_type == "WRONG_QUESTION_TUTOR":

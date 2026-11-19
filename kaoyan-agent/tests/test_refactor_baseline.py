@@ -36,12 +36,24 @@ async def test_frozen_legacy_behavior(case):
         # 2026-11-03: the profile carries an optional degreeType; legacy cases leave it unset.
         if isinstance(call["payload"].get("profile"), dict) and call["payload"]["profile"]:
             assert call["payload"]["profile"].pop("degreeType") is None
+        # 2026-11-19: candidates carry an additive evidenceLevel; legacy ones are all official.
+        for row in call["payload"].get("candidates", []) if isinstance(call["payload"], dict) else []:
+            assert row.pop("evidenceLevel") == "OFFICIAL_VERIFIED"
+    for row in actual["result"].get("candidates", []):
+        assert row.pop("evidenceLevel") == "OFFICIAL_VERIFIED"
     if "profileSnapshot" in actual["result"]:
         assert actual["result"]["profileSnapshot"].pop("degreeType") is None
     expected = copy.deepcopy(case["expected"])
-    # 2026-11-03: a missing degree type points to the personal profile first.
+    # Keep the historical fixture and compare the new actionable clarification.
     if case["case"]["name"] == "schools_missing":
-        expected["result"]["followUp"][-1] = "请在个人档案选择学硕或专硕（也可在本轮说明）"
+        missing = [
+            "请说明报考年份（例如2027年），也可在个人档案中填写。",
+            "请说明目标专业名称或六位专业代码。",
+            "请在个人档案选择学硕或专硕（也可在本轮说明）",
+        ]
+        expected["result"].update(
+            followUp=missing, answer="推荐条件尚不完整。\n\n" + "\n".join(f"- {item}" for item in missing),
+        )
     # 2026-11-02: unsupported admission prose no longer replaces the rule
     # explanation. The frozen fixture keeps the historical AI result.
     if case["case"]["name"] == "schools_ai":

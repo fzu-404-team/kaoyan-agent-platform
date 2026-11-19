@@ -57,28 +57,53 @@
       <component :is="practice ? 'details' : 'div'" v-if="result.evidence?.length" class="source"><summary v-if="practice">学习依据（{{ result.evidence.length }}）</summary><strong v-else>学习依据</strong><p v-for="item in result.evidence" :key="item.ref"><router-link v-if="resourceRoute(item.resource)" :to="resourceRoute(item.resource)!">{{ item.ref }} · {{ item.title }}</router-link><span v-else>{{ item.ref }} · {{ item.title }}</span> · {{ item.locator || '原文位置未记录' }} · {{ item.version || '版本未记录' }}<template v-if="item.matchMethod"><br><span class="match-label">{{ item.matchMethod === 'LABEL' ? '知识点匹配' : '语义相关' }} · {{ item.matchTopic }}</span><br>{{ item.summary }}</template></p></component>
       <nav v-if="navigation.length" class="navigation-links" aria-label="相关功能入口"><router-link v-for="item in navigation" :key="item.target" :to="item.path" class="navigation-link">前往{{ item.label }}</router-link></nav>
       <el-alert v-if="!legacyAdmission && (result.notice || result.explanationMode === 'fallback')" type="warning" :closable="false" :title="result.notice || 'AI解释暂不可用，已保留资料与规则结果。'" :description="fallbackReasonLabel(result.fallbackReason) && `原因：${fallbackReasonLabel(result.fallbackReason)}`" />
-      <ul v-if="!legacyAdmission && result.followUp?.length"><li v-for="item in result.followUp" :key="item">{{ item }}</li></ul>
-      <article v-for="(candidate, index) in result.candidates" :key="candidate.programId" class="candidate">
-        <h3>{{ index + 1 }}. {{ candidate.school }} · {{ candidate.major }}</h3>
+      <ul v-if="!legacyAdmission && followUp.length"><li v-for="item in followUp" :key="item">{{ item }}</li></ul>
+      <template v-if="compactRecommendation && hasRecommendation">
+        <RecommendationCandidateList v-if="result.candidates?.length" :programs="result.candidates" :scores="scoreReferences" />
+        <p v-if="result.scoreFilter" class="muted">{{ result.scoreFilter.notice }}</p>
+        <p class="muted">报考资格及最新调整请核对当年招生章程。</p>
+        <p class="muted">
+          {{ result.scoreReferences?.length
+            ? '历史复试线来自用户提供并经用户审核批准的统计。方向、学习方式和统考口径仍需核对。'
+            : '本批候选暂无可用的历史复试总分线。' }}
+        </p>
+        <details v-if="result.unverifiedCandidates?.length" :open="!result.candidates?.length" class="recommendation-detail">
+          <summary>目录线索（{{ result.unverifiedCandidates.length }} 项）</summary>
+          <p v-if="catalogSummary" class="muted">{{ catalogSummary }}</p>
+          <RecommendationCandidateList :programs="result.unverifiedCandidates" :scores="scoreReferences" />
+        </details>
+      </template>
+      <template v-else>
+        <article v-for="(candidate, index) in result.candidates" :key="candidate.programId" class="candidate">
+        <h3>{{ index + 1 }}. <template v-if="candidate.scoreMatch">【{{ TIER_LABELS[candidate.scoreMatch.tier] }}】</template>{{ candidate.school }} · {{ candidate.major }}</h3>
         <p>{{ candidate.college }} · {{ candidate.year }}年 · {{ candidate.degreeType === 'academic' ? '学硕' : '专硕' }} · {{ candidate.region }}</p>
+        <p v-if="candidate.scoreMatch" class="muted">{{ scoreMatchLine(candidate.scoreMatch) }}</p>
         <p>初试科目代码：{{ candidate.examSubjects.join(' / ') }}</p>
         <div><el-tag v-for="condition in candidate.matchedConditions" :key="condition" size="small">{{ condition }}</el-tag></div>
         <p class="answer">{{ candidate.explanation }}</p>
         <p v-for="check in candidate.pendingChecks" :key="check" class="muted">待确认：{{ check }}</p>
-      </article>
-      <div v-if="result.learningSnapshot" class="source">
-        <p>推荐依据画像版本：{{ result.learningSnapshot.profileRevision }} · 蓝图覆盖 {{ Math.round(result.learningSnapshot.coverage * 100) }}% · {{ result.triggerReason === 'MANUAL' ? '手动生成' : '随学情或条件更新' }}</p>
-        <p>408实验性参考分：{{ result.learningSnapshot.referenceScore ?? '证据不足' }}，未经整卷校准。</p>
-      </div>
-      <div v-for="comparison in result.historicalComparisons" :key="comparison.programId" class="source">
-        <p>{{ comparison.programId }} · {{ comparison.year ? `${comparison.year}年408单科线：${comparison.score}` : '暂无可比资料' }}<span v-if="comparison.gap != null"> · 实验性参考差值 {{ comparison.gap }}</span></p>
-        <p>{{ comparison.notice }}</p>
-        <a v-if="comparison.source && safeUrl(comparison.source.url)" :href="safeUrl(comparison.source.url)" target="_blank" rel="noopener noreferrer">{{ comparison.source.title }} · {{ comparison.source.locator }}</a>
-      </div>
-      <p v-if="result.coverage" class="muted">资料库范围：{{ result.coverage }}</p>
+        </article>
+        <p v-if="result.scoreFilter" class="muted">{{ result.scoreFilter.notice }}</p>
+      </template>
+      <component :is="compactRecommendation ? 'details' : 'div'" v-if="result.learningSnapshot || historicalComparisons.length" :class="{ 'recommendation-detail': compactRecommendation }">
+        <summary v-if="compactRecommendation">学情与历史 408 单科对照</summary>
+        <div v-if="result.learningSnapshot" class="source">
+          <p>
+            画像版本 {{ result.learningSnapshot.profileRevision }} · 蓝图覆盖 {{ Math.round(result.learningSnapshot.coverage * 100) }}%
+            <template v-if="!compactRecommendation"> · {{ result.triggerReason === 'MANUAL' ? '手动生成' : '随学情或条件更新' }}</template>
+          </p>
+          <p>408 实验性参考分：{{ result.learningSnapshot.referenceScore ?? '证据不足' }}，未经整卷校准。</p>
+        </div>
+        <p v-if="compactRecommendation && !historicalComparisons.length" class="muted">暂无可比的历史 408 单科线。</p>
+        <div v-for="comparison in historicalComparisons" :key="comparison.programId" class="source">
+          <p>{{ compactRecommendation ? candidateNames[comparison.programId] || comparison.programId : comparison.programId }} · {{ comparison.year ? `${comparison.year}年408单科线：${comparison.score}` : '暂无可比资料' }}<span v-if="comparison.gap != null"> · 实验性参考差值 {{ comparison.gap }}</span></p>
+          <p v-if="!compactRecommendation">{{ comparison.notice }}</p>
+          <a v-if="comparison.source && safeUrl(comparison.source.url)" :href="safeUrl(comparison.source.url)" target="_blank" rel="noopener noreferrer">{{ comparison.source.title }} · {{ comparison.source.locator }}</a>
+        </div>
+      </component>
       <p v-if="result.accuracy !== undefined">本次有效作答正确率：{{ result.accuracy }}%（不代表考试能力）</p>
       <p v-if="result.weakPoints?.length">本次错题涉及：{{ result.weakPoints.join('、') }}</p>
-      <details v-if="result.references?.length" open>
+      <details v-if="result.references?.length" :open="!compactRecommendation && !hasRecommendation" :class="{ 'recommendation-detail': compactRecommendation }">
         <summary>查看依据（{{ result.references.length }}）</summary>
         <div v-for="source in result.references" :key="source.id" class="source">
           <a v-if="safeUrl(source.url)" :href="safeUrl(source.url)" target="_blank" rel="noopener noreferrer">{{ source.title }}</a>
@@ -99,6 +124,7 @@
 import ExportButton from './ExportButton.vue'
 import AdmissionLinksView from './AdmissionLinksView.vue'
 import SchoolCatalogView from './SchoolCatalogView.vue'
+import RecommendationCandidateList from './RecommendationCandidateList.vue'
 import { computed } from 'vue'
 import { resultNavigation } from '@/utils/assistant-navigation'
 import { useUserStore } from '@/stores/user'
@@ -106,25 +132,45 @@ import type { Task } from '@/types/api'
 import SafeMarkdown from '@/components/SafeMarkdown.vue'
 import { resourceRoute, safeSourceUrl } from '@/utils/assistant-resource'
 import { fallbackReasonLabel } from '@/utils/fallback-reason'
+import { TIER_LABELS, scoreMatchLine } from '@/utils/score-match'
 import { ADMISSION_LEGACY_NO_LINK, ADMISSION_SAFE_ANSWER, ADMISSION_LINK_UNVERIFIED, legacyLinks, projectLinks, registeredAdmissionUrls } from '@/utils/admission-links'
-const props = defineProps<{ task: Task }>()
+const props = defineProps<{ task: Task; compactRecommendation?: boolean }>()
 const result = computed(() => {
   const value = props.task.resultPayload
   return value && ((value.outcome && value.explanationMode) || value.admissionLinks || value.admissionCheck) ? value : null
 })
 const legacyAdmission = computed(() => Boolean(props.task.resultPayload?.admissionCheck))
 const links = computed(() => projectLinks(result.value?.admissionLinks) ?? legacyLinks(result.value?.admissionCheck))
+const hasRecommendation = computed(() => Boolean(result.value?.candidates?.length || result.value?.unverifiedCandidates?.length))
+const scoreReferences = computed(() => Object.fromEntries((result.value?.scoreReferences ?? []).map(item => [item.programId, item])))
+const candidateNames = computed(() => Object.fromEntries((result.value?.candidates ?? []).map(item => [item.programId, item.school])))
+const historicalComparisons = computed(() => (result.value?.historicalComparisons ?? [])
+  .filter(item => !props.compactRecommendation || item.year != null))
+const catalogSummary = computed(() => result.value?.unverifiedCandidates?.length
+  ? result.value.answer.split('\n').find(line => line.startsWith('院校目录中有'))
+  : undefined)
 const displayAnswer = computed(() => {
   if (!result.value) return ''
   if (legacyAdmission.value) return links.value ? ADMISSION_SAFE_ANSWER : ADMISSION_LEGACY_NO_LINK
   if (result.value.admissionLinks && !links.value) return ADMISSION_LINK_UNVERIFIED
   if (result.value.admissionLinks && !result.value.candidates?.length && !result.value.schoolCatalog) return ADMISSION_SAFE_ANSWER
+  if (props.compactRecommendation && catalogSummary.value) {
+    // The legacy catalog bullets repeat the structured entries below.
+    const lines = result.value.answer.split('\n')
+    const first = lines.indexOf(catalogSummary.value)
+    let last = first + 1
+    while (lines[last]?.startsWith('- ')) last++
+    lines.splice(first, last - first)
+    return lines.join('\n').trim()
+  }
   return result.value.answer
 })
 const answerUrls = computed(() => [
   ...(result.value?.references ?? []).map(source => source.url).filter(url => Boolean(safeUrl(url))),
   ...registeredAdmissionUrls(),
 ])
+const followUp = computed(() => (result.value?.followUp ?? [])
+  .filter(item => !props.compactRecommendation || !displayAnswer.value.includes(item)))
 const user = useUserStore()
 const navigation = computed(() => result.value ? resultNavigation(result.value, user.isAdmin) : [])
 const practice = computed(() => result.value?.actions?.some(action => action.type === 'PRACTICE_CREATE'))
@@ -171,5 +217,6 @@ summary { cursor:pointer }
 .candidate h3 { margin: 0 0 10px; }
 .candidate .el-tag { margin: 0 6px 6px 0; }
 .source p, .muted { color: var(--c-ink-2); font-size: 13px; }
+.recommendation-detail { padding: 9px 0; border-top: 1px solid var(--c-line); }
 summary { cursor: pointer; font-weight: 600; }
 </style>
