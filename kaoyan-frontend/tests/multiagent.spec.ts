@@ -47,11 +47,11 @@ async function setup(page: Page, authenticated = true, extended = true) {
   return { submitted: () => submitted }
 }
 
-for (const extended of [true, false]) test(`diagnosis can be skipped and compound plan survives reload: sections=${extended}`, async ({ page }) => {
+for (const extended of [true, false]) test(`chat page has no diagnosis card and compound plan survives reload: sections=${extended}`, async ({ page }) => {
   const state = await setup(page, true, extended)
   await page.goto('/tasks')
-  await expect(page.getByRole('button', { name: '开始单选诊断' })).toBeVisible()
-  await page.getByRole('button', { name: '暂时跳过', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '今天想聊什么？' })).toBeVisible()
+  // The diagnosis entry lives on the home and practice pages, not in the chat empty state.
   await expect(page.getByRole('button', { name: '开始单选诊断' })).toHaveCount(0)
   expect(state.submitted()).toBe(0)
   await page.getByRole('button', { name: '分析学情并安排复习' }).click()

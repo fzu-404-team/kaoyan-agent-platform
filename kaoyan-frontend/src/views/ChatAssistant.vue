@@ -1,37 +1,41 @@
 <template>
   <div class="assistant" :class="{ compact }">
     <aside class="conversation-list">
-      <el-button type="primary" @click="newConversation">新建会话</el-button>
+      <el-button class="new-conversation" type="primary" @click="newConversation">新建会话</el-button>
+      <div class="list-label">最近会话</div>
       <ConversationListItem v-for="item in conversations" :key="item.id" :item="item" :active="item.id === conversationId" :busy="!!deletingConversation" @open="openConversation" @delete="removeConversation" />
-      <el-button v-if="conversations.length < conversationTotal" :loading="loadingConversations" :disabled="loadingConversations || !!deletingConversation" @click="moreConversations">展开更多</el-button>
-      <router-link to="/tasks/history">任务历史</router-link>
+      <el-button v-if="conversations.length < conversationTotal" class="more-conversations" text :loading="loadingConversations" :disabled="loadingConversations || !!deletingConversation" @click="moreConversations">展开更多</el-button>
+      <router-link class="history-link" to="/tasks/history">任务历史</router-link>
     </aside>
     <section class="chat-main">
       <header class="chat-heading">
-        <el-button class="mobile-menu" @click="drawer = true">会话</el-button>
+        <el-button class="mobile-menu" text @click="drawer = true">会话</el-button>
         <h2>考研助手</h2>
-        <el-button @click="openPrivacy">隐私</el-button>
-        <el-button v-if="compact" @click="assistant.open = false">关闭</el-button>
-        <el-button @click="router.push('/notes')">个人笔记</el-button>
+        <div class="heading-pills">
+          <span class="pill" :class="{ muted: !privacy?.modelAllowed }" :title="privacyTitle">{{ privacy?.modelAllowed ? '模型已授权' : '外部模型未授权 · 使用本地规则' }}</span>
+          <span v-if="conditionEntries.length" class="pill" :title="conditionTitle" aria-label="当前会话条件">{{ conditionSummary }}</span>
+          <span v-if="assistant.pageContext" class="pill muted">{{ pageLabels[assistant.pageContext.page] }}{{ ['wrong', 'favorite', 'practice'].includes(assistant.pageContext.page) ? ' · 所选 ' + (assistant.pageContext.selectedQuestionIds?.length || 0) + ' 题' : '' }}</span>
+        </div>
+        <div class="heading-actions">
+          <el-button text @click="openPrivacy">隐私</el-button>
+          <el-button text @click="router.push('/notes')">个人笔记</el-button>
+          <el-button v-if="compact" text @click="assistant.open = false">关闭</el-button>
+        </div>
       </header>
-      <div class="privacy-summary"><span>{{ privacy?.modelAllowed ? '模型已授权 · 外发类别：' + (privacy.scopes.map(scope => scopeLabels[scope]).join('、') || '仅提问与必要历史') : '外部模型未授权 · 使用本地规则' }}</span><small v-if="assistant.pageContext">当前页面：{{ pageLabels[assistant.pageContext.page] }} · {{ ['wrong', 'favorite', 'practice'].includes(assistant.pageContext.page) ? '所选 ' + (assistant.pageContext.selectedQuestionIds?.length || 0) + ' 题' : '' }}</small></div>
-      <div v-if="assistant.pageContext && assistant.pageContext.page !== 'notes'" class="quick-prompts"><el-button size="small" @click="input = '分析当前页面的学习情况'">分析学习情况</el-button><el-button size="small" @click="input = '推荐相关复习资料'">推荐资料</el-button><el-button size="small" @click="input = '用这些题目安排练习'">安排练习</el-button></div>
-      <div v-if="conditionEntries.length" class="conditions" aria-label="当前会话条件">
-        <strong>当前会话条件</strong><el-tag v-for="entry in conditionEntries" :key="entry[0]">{{ entry[0] }}：{{ entry[1] }}</el-tag>
-        <small>仅用于本会话，不修改个人档案</small>
-      </div>
-      <div v-if="tutoring" class="tutoring-focus" role="status">已选择一条已判分错题，后续问题将围绕这次作答。<el-button size="small" @click="clearTutoring">清除错题上下文</el-button></div>
+      <div v-if="tutoring" class="tutoring-focus" role="status">已选择一条已判分错题，后续问题将围绕这次作答。<el-button size="small" text type="primary" @click="clearTutoring">清除错题上下文</el-button></div>
       <div ref="scrollArea" class="messages" @scroll="trackScroll">
-        <el-button v-if="messages.length < messageTotal" @click="olderMessages">加载更早消息</el-button>
-        <template v-if="!messages.length">
-          <el-empty description="可以询问408知识、分析学情、安排复习和练习、咨询择校，或整理学习笔记" />
-          <DiagnosticEntry v-if="!compact" />
-          <div class="quick-prompts" aria-label="开始使用考研助手">
-            <el-button size="small" @click="input = '分析我的薄弱点，安排下周复习并比较院校'">分析学情并安排复习</el-button>
-            <el-button size="small" @click="input = '给我出5道有关排序的题'">安排题库练习</el-button>
-            <el-button size="small" @click="input = '我暂时跳过诊断，请介绍可以使用的功能'">先了解功能</el-button>
+        <el-button v-if="messages.length < messageTotal" class="older-messages" text @click="olderMessages">加载更早消息</el-button>
+        <div v-if="!messages.length" class="welcome">
+          <svg class="welcome-mark" width="36" height="36" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2c.6 4.9 2.6 7.4 10 10-7.4 2.6-9.4 5.1-10 10-.6-4.9-2.6-7.4-10-10 7.4-2.6 9.4-5.1 10-10z" /></svg>
+          <h3>今天想聊什么？</h3>
+          <p>可以询问408知识、分析学情、安排复习和练习、咨询择校，或整理学习笔记</p>
+          <div class="suggestions" aria-label="开始使用考研助手">
+            <button v-for="item in suggestions" :key="item.title" type="button" class="suggestion" @click="useSuggestion(item.prompt)">
+              <strong>{{ item.title }}</strong><small>{{ item.description }}</small>
+              <svg class="suggestion-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9" /></svg>
+            </button>
           </div>
-        </template>
+        </div>
         <article v-for="message in messages" :key="message.id" class="turn">
           <div class="user-message">{{ message.content }}</div>
           <div v-for="attempt in message.attempts" :key="attempt.taskId" class="assistant-message">
@@ -61,18 +65,27 @@
         </article>
       </div>
       <footer class="composer">
-        <div class="document-selection">
-          <el-select v-model="selectedDocumentId" clearable placeholder="可选择个人笔记" aria-label="选择个人笔记">
-            <el-option v-for="document in selectableDocuments" :key="document.id" :label="document.title" :value="document.id" />
-          </el-select>
-          <small v-if="selectedDocument">已选 v{{ selectedDocument.version }} · {{ selectedDocument.title }}</small>
-          <el-button v-if="personalDocuments.length < documentTotal" size="small" @click="moreDocuments">更多笔记</el-button>
+        <div v-if="assistant.pageContext && assistant.pageContext.page !== 'notes'" class="quick-prompts"><el-button size="small" round @click="useSuggestion('分析当前页面的学习情况')">分析学习情况</el-button><el-button size="small" round @click="useSuggestion('推荐相关复习资料')">推荐资料</el-button><el-button size="small" round @click="useSuggestion('用这些题目安排练习')">安排练习</el-button></div>
+        <div v-if="referenceTaskId" class="reference-selection">已引用所选回答中的题目<el-button size="small" text type="primary" @click="referenceTaskId = undefined">取消引用</el-button></div>
+        <div class="composer-box">
+          <el-input ref="inputRef" v-model="input" type="textarea" :autosize="{ minRows: 2, maxRows: 8 }" :maxlength="8000"
+            placeholder="问我任何问题，或要求创建笔记、修改选中的笔记" aria-label="聊天输入"
+            @keydown="onKeydown" @compositionstart="composing = true" @compositionend="composing = false" />
+          <div class="composer-bar">
+            <div class="document-selection">
+              <el-select v-model="selectedDocumentId" class="note-select" size="small" clearable placeholder="附加个人笔记" aria-label="选择个人笔记">
+                <el-option v-for="document in selectableDocuments" :key="document.id" :label="document.title" :value="document.id" />
+              </el-select>
+              <el-button v-if="personalDocuments.length < documentTotal" size="small" text @click="moreDocuments">更多笔记</el-button>
+              <small v-if="selectedDocument" class="composer-hint">已选 v{{ selectedDocument.version }} · {{ selectedDocument.title }}</small>
+              <span v-else class="composer-hint shortcut-hint">Enter 发送 · Shift+Enter 换行</span>
+            </div>
+            <small v-if="input.length" class="composer-count" :class="{ warn: input.length > 7500 }">{{ input.length }} / 8000</small>
+            <el-button class="send-button" type="primary" circle aria-label="发送" title="发送" :loading="sending" :disabled="!input.trim() || !!activeGeneration || loadingDocument" @click="send()">
+              <svg v-if="!sending" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
+            </el-button>
+          </div>
         </div>
-        <div v-if="referenceTaskId" class="reference-selection">已引用所选回答中的题目<el-button size="small" @click="referenceTaskId = undefined">取消引用</el-button></div>
-        <el-input v-model="input" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" :maxlength="8000" show-word-limit
-          placeholder="输入问题，或要求创建笔记、修改选中的笔记" aria-label="聊天输入"
-          @keydown="onKeydown" @compositionstart="composing = true" @compositionend="composing = false" />
-        <div class="composer-actions"><small>Enter 发送 · Shift+Enter 换行</small><el-button type="primary" :loading="sending" :disabled="!input.trim() || !!activeGeneration || loadingDocument" @click="send()">发送</el-button></div>
       </footer>
     </section>
     <el-drawer v-model="drawer" title="会话" direction="ltr" size="min(300px,90vw)">
@@ -116,7 +129,6 @@ import type { ChatMessage, Conversation, Generation, PersonalDocument } from '@/
 import SafeMarkdown from '@/components/SafeMarkdown.vue'
 import ConversationListItem from '@/components/ConversationListItem.vue'
 import TaskResultView from '@/components/TaskResultView.vue'
-import DiagnosticEntry from '@/components/DiagnosticEntry.vue'
 
 defineProps<{ compact?: boolean }>()
 const route = useRoute(), router = useRouter(), user = useUserStore(), assistant = useAssistantStore()
@@ -194,6 +206,18 @@ const activeGeneration = computed(() => messages.value.flatMap(message => messag
 const conditionLabels: Record<string,string> = { examYear: '年份', majorCodes: '专业', degreeType: '学位', regions: '地区', regionConstraint: '地区要求', studyMode: '学习方式', examSubjects: '考试科目' }
 const conditionValues: Record<string,string> = { academic: '学硕', professional: '专硕', required: '必须满足', preferred: '优先考虑', full_time: '全日制', part_time: '非全日制' }
 const conditionEntries = computed(() => Object.entries(current.value?.conditions || {}).filter(([key,value]) => key in conditionLabels && value != null && value !== '' && (!Array.isArray(value) || value.length)).map(([key,value]) => [conditionLabels[key]!, conditionValues[String(value)] || (Array.isArray(value) ? value.join('、') : String(value))]))
+// 头部只保留简短状态，完整的外发类别与条件说明放在悬停提示中
+const privacyTitle = computed(() => privacy.value?.modelAllowed ? '外发类别：' + (privacy.value.scopes.map(scope => scopeLabels[scope]).join('、') || '仅提问与必要历史') + '\n可在“隐私”中调整' : '未开启外部模型，回答使用本地规则；可在“隐私”中开启')
+const conditionSummary = computed(() => '本会话 · ' + conditionEntries.value.map(([label, value]) => label === '地区要求' ? '地区' + value : value).join(' · '))
+const conditionTitle = computed(() => conditionEntries.value.map(([label, value]) => label + '：' + value).join('\n') + '\n仅用于本会话，不修改个人档案')
+const suggestions = [
+  { title: '分析学情并安排复习', description: '结合薄弱点、进度与可用时间', prompt: '分析我的薄弱点，安排下周复习并比较院校' },
+  { title: '安排题库练习', description: '按知识点组题，确认后开始', prompt: '给我出5道有关排序的题' },
+  { title: '一起看看择校', description: '院校、专业与招生条件', prompt: '根据我的档案推荐几所适合的计算机考研院校' },
+  { title: '讲清一个知识点', description: '理解原理，串联相关知识', prompt: '请用具体例子讲解：' }
+]
+const inputRef = ref<{ focus: () => void }>()
+function useSuggestion(prompt: string) { input.value = prompt; void nextTick(() => inputRef.value?.focus()) }
 const differences = computed(() => diffLines(baseDocument.value?.content || '', editContent.value))
 const guard = (stamp: number) => stamp === epoch && !!user.token
 function trackScroll() { const node = scrollArea.value; if (node) atBottom.value = node.scrollHeight - node.scrollTop - node.clientHeight < 90 }
@@ -437,35 +461,81 @@ onBeforeUnmount(() => { unmounted = true; epoch++; stream?.abort() })
 </script>
 
 <style scoped>
-.privacy-summary { display:flex; flex-direction:column; gap:4px; padding:8px 12px; font-size:12px; color:var(--c-ink-2); border-bottom:1px solid var(--c-line) }
-.quick-prompts { display:flex; flex-wrap:wrap; gap:6px; padding:8px }.quick-prompts .el-button { margin:0 }
-.scope-options { display:flex; flex-wrap:wrap; margin:14px 0 }.clear-controls { display:flex; flex-wrap:wrap; gap:8px }
+.assistant { display:flex; height:calc(100vh - 56px); min-height:400px; background:var(--c-surface) }
+/* 左侧会话列表 */
+.conversation-list { width:240px; flex-shrink:0; padding:16px 12px; border-right:1px solid var(--c-line); background:#fafbfd; overflow:auto; display:flex; flex-direction:column }
+.new-conversation { width:100%; height:40px; margin:0 0 14px; border-radius:10px; font-weight:600 }
+.list-label { padding:0 12px 4px; font-size:12px; color:var(--c-ink-3) }
+.conversation-list :deep(.conversation-row) { margin:2px 0 }
+.conversation-list :deep(.conversation) { font-size:14px }
+.more-conversations { align-self:flex-start; margin:6px 0 0; padding:0 12px; color:var(--c-ink-2) }
+.history-link { margin-top:auto; padding:12px 12px 0; font-size:13px; color:var(--c-ink-2); text-decoration:none }
+.history-link:hover { color:var(--c-primary) }
+/* 主区域 */
+.chat-main { min-width:0; flex:1; display:flex; flex-direction:column }
+.chat-heading { display:flex; align-items:center; gap:10px; min-height:56px; padding:8px 20px; border-bottom:1px solid var(--c-line) }
+.chat-heading h2 { margin:0; font-size:16px; font-weight:600; white-space:nowrap }
+.heading-pills { flex:1; min-width:0; display:flex; gap:6px; overflow:hidden }
+.pill { flex-shrink:1; min-width:0; max-width:320px; padding:3px 10px; border-radius:999px; font-size:12px; line-height:18px; color:var(--c-primary-strong); background:var(--c-primary-light); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:default }
+.pill.muted { color:var(--c-ink-2); background:var(--c-bg) }
+.heading-actions { display:flex; flex-shrink:0 }
+.chat-heading .el-button { margin:0 }
+.tutoring-focus { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:4px 8px; padding:6px 16px; font-size:13px; color:var(--c-primary-strong); background:var(--c-primary-light) }
+.messages { overflow:auto; flex:1; padding:20px 24px; overflow-wrap:anywhere }
+.older-messages { display:flex; margin:0 auto 12px }
+/* 空会话欢迎区 */
+.welcome { max-width:720px; min-height:100%; margin:0 auto; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px 0; text-align:center }
+.welcome-mark { color:var(--c-primary) }
+.welcome h3 { margin:16px 0 8px; font-size:26px; font-weight:600; color:var(--c-ink) }
+.welcome p { margin:0 0 28px; font-size:14px; color:var(--c-ink-2) }
+.suggestions { width:100%; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px }
+.suggestion { position:relative; display:flex; flex-direction:column; gap:6px; padding:16px 40px 16px 18px; text-align:left; border:1px solid var(--c-line); border-radius:var(--r-md); background:var(--c-surface); color:var(--c-ink); cursor:pointer; transition:border-color .15s, background .15s, box-shadow .15s; font:inherit }
+.suggestion strong { font-size:15px; font-weight:600 }
+.suggestion small { font-size:12px; color:var(--c-ink-3) }
+.suggestion:hover { border-color:var(--c-primary); background:var(--c-primary-light); box-shadow:var(--shadow-md) }
+.suggestion:focus-visible { outline:2px solid var(--c-primary); outline-offset:2px }
+.suggestion-arrow { position:absolute; top:18px; right:16px; color:var(--c-primary) }
+/* 消息 */
+.turn { max-width:820px; margin:0 auto 24px }
+.user-message { margin:0 0 12px auto; padding:10px 16px; width:fit-content; max-width:85%; background:var(--c-primary-light); border-radius:16px 16px 4px 16px; white-space:pre-wrap; line-height:1.7 }
+.assistant-message { margin-bottom:16px; padding:16px 18px; border:1px solid var(--c-line); border-radius:var(--r-md); background:var(--c-surface) }
+.assistant-message > small { margin-right:8px; color:var(--c-ink-2) }
+.quick-prompts { display:flex; flex-wrap:wrap; gap:6px; padding:8px 0 }.quick-prompts .el-button { margin:0 }
 .match-label { display:inline-block; margin:4px 0; padding:2px 6px; border:1px solid var(--c-line); border-radius:4px; color:var(--c-primary); background:var(--c-primary-light); font-size:12px; white-space:normal }
 .action-card { padding:12px; margin:10px 0; border:1px solid var(--c-line); border-radius:8px }
-.assistant.compact { position:fixed; top:56px; bottom:0; right:0; width:440px; max-width:100vw; height:auto; z-index:100; box-shadow:-4px 0 20px #0002 }
-.compact .conversation-list { display:none }.compact .mobile-menu { display:inline-flex }.compact .chat-heading { flex-wrap:wrap; gap:8px; padding:10px }.compact .messages { padding:10px }.compact .composer { padding:10px }.compact .chat-heading h2 { font-size:16px }
-@media(max-width:640px) { .assistant.compact { top:0; width:100vw; height:100dvh } }
-.assistant { display:flex; height:calc(100vh - 56px); min-height:400px; background:var(--c-surface) }
-.conversation-list { width:210px; flex-shrink:0; padding:18px 12px; border-right:1px solid var(--c-line); overflow:auto; display:flex; flex-direction:column; gap:12px }
-.chat-main { min-width:0; flex:1; display:flex; flex-direction:column }
-.chat-heading { display:flex; align-items:center; gap:12px; padding:12px 20px; border-bottom:1px solid var(--c-line) }
-.chat-heading h2 { flex:1; margin:0; font-size:18px; white-space:nowrap }
-.chat-heading .el-button { margin:0 }
-.conditions { padding:10px 20px; display:flex; gap:6px; flex-wrap:wrap; font-size:12px; border-bottom:1px solid var(--c-line) }
-.conditions small { width:100%; color:var(--c-ink-2) }
-.messages { overflow:auto; flex:1; padding:16px 24px; overflow-wrap:anywhere }
-.turn { max-width:850px; margin:0 auto 24px }
-.user-message { margin:0 0 12px auto; padding:12px 16px; width:fit-content; max-width:95%; background:var(--c-primary-light); border-radius:12px; white-space:pre-wrap }
-.assistant-message { margin-bottom:16px; padding:14px; border:1px solid var(--c-line); border-radius:12px }
-.assistant-message > small { margin-right:8px; color:var(--c-ink-2) }
-.composer { padding:12px 20px; border-top:1px solid var(--c-line) }
-.composer-actions { display:flex; justify-content:space-between; align-items:center; margin-top:8px; gap:8px }
-.composer-actions small { font-size:11px; color:var(--c-ink-2) }
-.document-selection { display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap }
-.document-selection .el-select { width:220px; max-width:100% }
-.document-row { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:12px 0; border-bottom:1px solid var(--c-line) }
+/* 输入框：居中卡片，底栏放笔记选择、提示与发送 */
+.composer { padding:4px 24px 18px }
+.composer > * { max-width:820px; margin-left:auto; margin-right:auto }
+.composer .quick-prompts { padding:0 0 8px }
+.reference-selection { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:13px; color:var(--c-ink-2) }
+.composer-box { border:1px solid var(--c-line); border-radius:var(--r-lg); background:var(--c-surface); box-shadow:var(--shadow-md); transition:border-color .15s, box-shadow .15s }
+.composer-box:focus-within { border-color:var(--c-primary); box-shadow:0 0 0 3px var(--c-primary-light), var(--shadow-md) }
+.composer-box :deep(.el-textarea__inner) { padding:14px 16px 4px; border:0; box-shadow:none; background:transparent; resize:none; font-size:15px; line-height:1.7 }
+.composer-bar { display:flex; align-items:center; gap:8px; padding:6px 10px 10px 12px }
+.document-selection { flex:1; min-width:0; display:flex; align-items:center; gap:8px }
+.note-select { width:170px; flex-shrink:0 }
+.composer-bar .el-button { margin:0 }
+.composer-hint { flex:1; min-width:0; font-size:12px; color:var(--c-ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.composer-count { flex-shrink:0; font-size:12px; color:var(--c-ink-3) }.composer-count.warn { color:var(--c-warning) }
+.send-button { flex-shrink:0; width:36px; height:36px }
+/* 弹窗 */
+.scope-options { display:flex; flex-wrap:wrap; margin:14px 0 }.clear-controls { display:flex; flex-wrap:wrap; gap:8px }
 .document-editor { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:12px; max-height:55vh; overflow:auto }
 .diff { white-space:pre-wrap; overflow-wrap:anywhere }.added { background:#ddf5df }.removed { background:#ffe0e0; text-decoration:line-through }
+/* 其他页面右侧浮层 */
+.assistant.compact { position:fixed; top:56px; bottom:0; right:0; width:440px; max-width:100vw; height:auto; z-index:100; box-shadow:-4px 0 20px #0002 }
+.compact .conversation-list { display:none }.compact .mobile-menu { display:inline-flex }
+.compact .chat-heading { flex-wrap:wrap; gap:6px 8px; padding:8px 10px }.compact .heading-pills { order:3; flex-basis:100%; flex-wrap:wrap }
+.compact .messages { padding:12px 10px }.compact .composer { padding:4px 10px 10px }
+.compact .suggestions { grid-template-columns:1fr }.compact .welcome h3 { font-size:20px }.compact .note-select { width:130px }
+@media(max-width:640px) { .assistant.compact { top:0; width:100vw; height:100dvh } }
 .mobile-menu { display:none }
-@media(max-width:900px) { .conversation-list { display:none }.mobile-menu { display:inline-flex }.messages { padding:12px 10px }.composer,.chat-heading { padding:10px }.document-editor { grid-template-columns:1fr }.conditions { padding:8px }.assistant-message { padding:10px } }
+@media(max-width:900px) {
+  .conversation-list { display:none }.mobile-menu { display:inline-flex }
+  .chat-heading { flex-wrap:wrap; padding:8px 10px }.heading-pills { order:3; flex-basis:100%; flex-wrap:wrap }
+  .messages { padding:12px 10px }.composer { padding:4px 10px 10px }
+  .suggestions { grid-template-columns:1fr }.welcome h3 { font-size:22px }
+  .document-editor { grid-template-columns:1fr }.assistant-message { padding:12px }
+  .note-select { width:130px }.shortcut-hint { display:none }
+}
 </style>
