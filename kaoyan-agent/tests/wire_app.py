@@ -1,11 +1,14 @@
 """Isolated HTTP fixture: real RAG envelope and routing, deterministic model output."""
 import asyncio
+
 from config import Settings
 from main import create_app
+from schemas import ChatRequest
 
 app = create_app(Settings(_env_file=None))
 
-async def answer(req):
+async def answer(req: ChatRequest, *, general_question: str | None = None) -> dict[str, object]:
+    """Return the injected answer using the workflow's current knowledge interface."""
     if req.userInput == 'simulate-interruption':
         await asyncio.sleep(120)
     return {'outcome': 'COMPLETED', 'answer': 'HTTP链路测试的模拟答案，不代表领域回答', 'references': []}
