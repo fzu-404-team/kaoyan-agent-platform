@@ -85,7 +85,7 @@
           </label>
         </div>
         <p class="answer-status" role="status">{{ answerStatus }}</p>
-        <div v-if="revealed" class="feedback" :class="lastCorrect ? 'ok' : 'bad'">
+        <div v-if="revealed" ref="feedbackEl" class="feedback" :class="lastCorrect ? 'ok' : 'bad'">
           {{ lastCorrect ? '回答正确' : `回答错误，正确答案：${feedback?.answer}` }}
           <p v-if="feedback?.analysis">解析：{{ feedback.analysis }}</p>
         </div>
@@ -119,7 +119,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useAssistantPage } from '@/composables/assistant-page'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
@@ -178,8 +178,9 @@ const percent = computed(() => Math.round((idx.value / (records.value.length || 
 const difficultyLabels: Record<string, string> = { EASY: '简单', MEDIUM: '中等', HARD: '困难' }
 const optionsLocked = computed(() => revealed.value || busy.value || Boolean(loadError.value))
 const answerStatus = computed(() => !revealed.value && answer.value
-  ? `已选择 ${answer.value}，按 Enter 或点击“提交答案”；提交前可以修改。`
+  ? `已选择 ${answer.value}，提交前可以修改。`
   : '')
+const feedbackEl = ref<HTMLElement>()
 
 // 答题快捷键：A–D / 1–4 选择，Enter 提交或进入下一题。
 // 焦点在输入框、按钮、链接内时交给浏览器默认行为，避免与追问输入、按钮回车重复触发。
@@ -321,6 +322,12 @@ const submit = async () => {
       rec.userAnswer = result.userAnswer
       lastCorrect.value = result.isCorrect === 1
       revealed.value = true
+      // 手机上反馈可能落在选项下方视野外，提交后就地滚入视野
+      await nextTick()
+      feedbackEl.value?.scrollIntoView({
+        block: 'nearest',
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+      })
     } catch (error) {
       if (axios.isCancel(error)) return
       if (axios.isAxiosError(error) && [404, 409].includes(error.response?.status || 0)) {
@@ -438,7 +445,16 @@ kbd, .opt-kbd {
 .kbd-hint { margin: 16px 0 0; font-size: 12px; color: var(--c-ink-2); text-align: right; line-height: 2; }
 @media (prefers-reduced-motion: reduce) { .opt { transition: none; } }
 @media (max-width: 640px) {
+  .page { padding: 16px 12px; }
+  .q-card { padding: 16px 14px; }
+  .progress-row { margin-bottom: 12px; }
+  .q-title { font-size: 16px; margin-bottom: 14px; }
+  .opt { min-height: 48px; padding: 10px 12px; gap: 10px; }
   .opt-kbd, .kbd-hint { display: none; }
+  .actions { flex-direction: column; align-items: stretch; margin-top: 14px; }
+  .actions .el-button { width: 100%; min-height: 44px; }
+  .summary { padding: 14px 10px; }
+  .sum-num { font-size: 20px; }
 }
 .opt-mark { font-size: 12px; font-weight: 600; }
 .opt-correct { background: var(--c-success-light); border-color: var(--c-success); }

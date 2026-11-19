@@ -66,7 +66,11 @@ async function start() {
 .compact .diag-actions { display: flex; gap: 8px; }
 .compact .diag-actions .el-button { margin: 0; }
 .compact .diag-error { flex: 1 1 100%; margin: 0; color: var(--c-danger); }
-@media (max-width: 640px) { .compact-icon { display: none; } }
+@media (max-width: 640px) {
+  .compact-icon { display: none; }
+  .compact { padding: 8px 12px; margin-bottom: 10px; gap: 6px 10px; }
+  .compact-text { font-size: 13px; line-height: 1.5; }
+}
 .diag-icon {
   width: 48px; height: 48px; border-radius: 12px; flex-shrink: 0;
   display: grid; place-items: center; color: var(--c-primary-strong);

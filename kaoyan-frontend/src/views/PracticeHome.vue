@@ -212,11 +212,17 @@ onMounted(() => { void loadHistory(); void openLinkedQuestion() })
 .start { min-width: 140px; }
 @media (prefers-reduced-motion: reduce) { .pill { transition: none; } }
 @media (max-width: 640px) {
-  .config { padding: 18px 16px; }
-  .cfg-row { flex-direction: column; gap: 6px; }
-  .cfg-label { line-height: 1.6; }
-  .pill { min-height: 44px; }
-  .start { width: 100%; }
+  /* 紧凑设置区：默认配置下「开始刷题」保持在 390×844 首屏内 */
+  .page { padding: 16px 12px; }
+  .page-head { margin-bottom: 12px; }
+  .config { padding: 14px 12px; margin-bottom: 16px; }
+  .cfg-row { flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .cfg-label { width: auto; font-size: 13px; line-height: 1.4; }
+  .opts { gap: 8px; }
+  .pill { min-height: 44px; padding: 0 12px; font-size: 13px; }
+  .cfg-foot { flex-direction: column; align-items: stretch; gap: 10px; padding-top: 12px; }
+  .cfg-summary { flex: none; font-size: 13px; }
+  .start { width: 100%; min-height: 44px; }
 }
 .sec-title { font-size: 15px; font-weight: 600; margin: 0 0 12px; }
 .more { text-align: center; margin: 16px 0; }

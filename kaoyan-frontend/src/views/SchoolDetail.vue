@@ -21,6 +21,34 @@
 
     <h3 class="sec-title">招生专业信息</h3>
     <el-empty v-if="!detail.details.length" description="该院校暂无已收录的招生专业信息" />
+    <!-- 手机：每条专业一张卡片，优先露出专业、年份、招生计划与复试参考线，其余字段展开查看 -->
+    <template v-else-if="isMobile">
+      <p class="mobile-hint">优先展示专业、年份、招生计划与复试参考线；展开「其余字段」查看专业代码、学院／方向与备注。</p>
+      <article v-for="row in detail.details" :key="row.id" class="card major-card">
+        <header class="major-head">
+          <h4 class="major-name">{{ row.majorName }}</h4>
+          <el-tag size="small" type="info" effect="plain">{{ row.year }}年</el-tag>
+        </header>
+        <SchoolMetric class="major-metric" :metric="row.admissionMetrics?.enrollment" kind="enrollment" :legacy-value="row.enrollmentCount" :legacy-year="row.year" />
+        <SchoolMetric class="major-metric" :metric="row.admissionMetrics?.cutoffReference" kind="cutoff" :legacy-value="row.scoreLine" :legacy-year="row.year" />
+        <details class="major-more">
+          <summary>其余字段：专业代码、学院／方向、备注</summary>
+          <dl class="major-fields">
+            <dt>专业代码</dt><dd>{{ row.majorCode || '未登记' }}</dd>
+            <template v-if="row.admissionMetrics">
+              <dt>学院</dt><dd>{{ row.admissionMetrics.college || '学院待核实' }}</dd>
+              <dt>方向</dt><dd>{{ row.admissionMetrics.track || '方向未登记' }}</dd>
+              <dt>学习方式</dt><dd>{{ studyModeLabel(row.admissionMetrics.studyMode) }}</dd>
+              <dt>招考类别</dt><dd>{{ categoryLabel(row.admissionMetrics.admissionCategory) }}</dd>
+            </template>
+            <template v-else>
+              <dt>学院／方向</dt><dd>见原始备注</dd>
+            </template>
+            <dt>备注</dt><dd class="major-remark">{{ row.remark || '无' }}</dd>
+          </dl>
+        </details>
+      </article>
+    </template>
     <div v-else class="card">
       <el-table :data="detail.details || []" stripe>
         <el-table-column prop="majorName" label="专业" min-width="180" />
@@ -70,6 +98,10 @@ const detail = ref<SchoolDetailVO | null>(null)
 const error = ref('')
 const notFound = ref(false)
 const user = useUserStore()
+const mobileQuery = window.matchMedia('(max-width: 640px)')
+const isMobile = ref(mobileQuery.matches)
+const onViewportChange = (event: MediaQueryListEvent) => { isMobile.value = event.matches }
+mobileQuery.addEventListener('change', onViewportChange)
 let active: AbortController | undefined
 let sequence = 0
 const warningMessages = computed(() => [...new Set(detail.value?.warnings?.map(item => item.message) ?? [])])
@@ -108,7 +140,7 @@ async function load() {
   }
 }
 watch([() => route.params.id, () => user.token], () => { void load() }, { immediate: true })
-onBeforeUnmount(() => { sequence++; active?.abort() })
+onBeforeUnmount(() => { sequence++; active?.abort(); mobileQuery.removeEventListener('change', onViewportChange) })
 </script>
 
 <style scoped>
@@ -129,4 +161,20 @@ onBeforeUnmount(() => { sequence++; active?.abort() })
 .score-title .sec-title { margin: 0; }
 .score-card { padding: 16px; }
 .loading-state { position: relative; min-height: 160px; padding: 24px; }
+.mobile-hint { margin: 0 0 12px; color: var(--c-ink-2); font-size: 13px; line-height: 1.6; }
+.major-card { display: grid; gap: 10px; padding: 14px; margin-bottom: 12px; }
+.major-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.major-name { margin: 0; font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
+.major-head .el-tag { flex-shrink: 0; }
+.major-metric { border-top: 1px dashed var(--c-line); padding-top: 10px; }
+.major-more summary { cursor: pointer; color: var(--c-primary); font-size: 13px; font-weight: 600; }
+.major-fields { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 10px 0 0; font-size: 13px; }
+.major-fields dt { color: var(--c-ink-2); white-space: nowrap; }
+.major-fields dd { margin: 0; overflow-wrap: anywhere; line-height: 1.6; }
+.major-remark { color: var(--c-ink-2); }
+@media (max-width: 640px) {
+  .page { padding: 16px 12px; }
+  .hero { padding: 16px; margin: 12px 0; }
+  .hero-name { font-size: 18px; }
+}
 </style>

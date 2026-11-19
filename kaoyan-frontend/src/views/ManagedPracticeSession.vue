@@ -8,21 +8,33 @@
       <el-alert v-if="state.kind === 'DIAGNOSTIC'" title="诊断结束后统一展示正误与解析。局部诊断不能估计完整408分数。" :closable="false" />
       <p v-for="m in state.blueprint.missing" :key="m.subject + m.difficulty">缺题：{{ m.subject }} / {{ m.difficulty }}，缺 {{ m.missing }} 题</p>
       <div class="answer-card">
-        <el-button v-for="(item, i) in state.items" :key="item.itemId" :type="i === index ? 'primary' : item.submitted ? 'success' : 'default'" @click="move(i)">{{ i + 1 }}{{ item.withdrawn ? '撤回' : item.hintLevelUsed ? '提示' : '' }}</el-button>
+        <el-button
+          v-for="({ item, type, label }, i) in answerCard"
+          :key="item.itemId"
+          :type="type"
+          :aria-current="i === index ? 'step' : undefined"
+          :aria-label="`第 ${i + 1} 题，${label}${!item.withdrawn && item.hintLevelUsed ? '，已使用提示' : ''}`"
+          plain
+          @click="move(i)"
+        >{{ i + 1 }}{{ item.withdrawn ? '撤回' : item.hintLevelUsed ? '提示' : '' }}</el-button>
       </div>
       <section v-if="current" class="card question">
         <p>{{ index + 1 }} / {{ state.items.length }} · {{ current.subject }} · {{ current.knowledgePoint }} · {{ current.difficulty }}</p>
         <h3>{{ current.content }}</h3>
         <el-alert v-if="current.withdrawn" title="该版本已撤回，不参与作答与有效统计。" type="warning" :closable="false" />
         <el-radio-group v-else v-model="answer" :disabled="current.submitted || state.state !== 'RUNNING' || loading" @change="draft">
-          <el-radio v-for="option in options" :key="option.key" :value="option.key">{{ option.key }}. {{ option.text }}</el-radio>
+          <el-radio v-for="option in options" :key="option.key" :value="option.key">
+            {{ option.key }}. {{ option.text }}
+            <span v-if="currentGrade === 0 && option.key === current.userAnswer" class="option-mark wrong">你的选择</span>
+            <span v-if="currentGrade === 0 && option.key === current.answer" class="option-mark correct">正确答案</span>
+          </el-radio>
         </el-radio-group>
         <p v-if="saveMessage" role="status">{{ saveMessage }}</p>
         <p v-if="current.submitted">已提交：{{ current.userAnswer }}</p>
-        <template v-if="current.isCorrect != null">
-          <el-tag :type="current.isCorrect === 1 ? 'success' : 'danger'">{{ current.isCorrect === 1 ? '答对' : '答错' }}</el-tag>
+        <template v-if="currentGrade != null">
+          <el-tag :type="currentGrade === 1 ? 'success' : 'danger'">{{ currentGrade === 1 ? '答对' : '答错' }}</el-tag>
           <p>标准答案：{{ current.answer }}</p><p>{{ current.analysis }}</p>
-          <WrongQuestionTutor v-if="current.isCorrect === 0 && !current.withdrawn" :key="current.itemId" :record-id="current.itemId" />
+          <WrongQuestionTutor v-if="currentGrade === 0" :key="current.itemId" :record-id="current.itemId" />
         </template>
         <p v-if="hintText">提示：{{ hintText }}</p>
         <div class="actions" v-if="state.state === 'RUNNING'">
@@ -48,13 +60,29 @@ import WrongQuestionTutor from '@/components/WrongQuestionTutor.vue'
 import { computed, onMounted, ref } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { managedState, managedResult, saveProgress, submitManaged, finishManaged, managedHint, type ManagedState, type ManagedResult } from '@/api/learning'
+import { managedState, managedResult, saveProgress, submitManaged, finishManaged, managedHint, type ManagedItem, type ManagedState, type ManagedResult } from '@/api/learning'
 const route = useRoute(), router = useRouter(), id = String(route.params.sessionId)
 const state = ref<ManagedState>(), result = ref<ManagedResult>(), index = ref(0), answer = ref('')
 const loading = ref(false), error = ref(''), saveMessage = ref(''), hintText = ref('')
 // Preserve the same request ID and content after an uncertain transport result.
 let pending: { itemId: number; answer: string; id: string } | undefined
 const current = computed(() => state.value?.items[index.value])
+const diagnosticRunning = computed(() => state.value?.kind === 'DIAGNOSTIC' && state.value.state === 'RUNNING')
+
+function publishedGrade(item: ManagedItem) {
+  if (diagnosticRunning.value || item.withdrawn || !item.submitted) return null
+  return item.isCorrect
+}
+
+const currentGrade = computed(() => current.value ? publishedGrade(current.value) : null)
+const answerCard = computed(() => state.value?.items.map(item => {
+  const grade = publishedGrade(item)
+  if (grade === 1) return { item, type: 'success', label: '答对' } as const
+  if (grade === 0) return { item, type: 'danger', label: '答错' } as const
+  const label = item.withdrawn ? '已撤回' : item.submitted ? '已提交，待公布判分' : '未作答'
+  return { item, type: 'info', label } as const
+}) ?? [])
+
 const options = computed(() => ['A', 'B', 'C', 'D'].map(key => ({ key, text: current.value?.[`option${key}` as 'optionA'] })).filter(o => o.text))
 const percent = (v: number | null) => v == null ? '暂无数据' : `${Math.round(v * 100)}%`
 function show() { answer.value = current.value?.userAnswer || current.value?.draftAnswer || ''; hintText.value = '' }
@@ -117,7 +145,11 @@ onMounted(load)
 .question { padding: 24px; margin-top: 16px; overflow-wrap: anywhere; }
 .answer-card, .actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
 .answer-card .el-button + .el-button, .actions .el-button + .el-button { margin-left: 0; }
+.answer-card [aria-current="step"] { outline: 2px solid var(--c-primary-strong); outline-offset: 2px; }
 .el-radio-group { display: flex; flex-direction: column; align-items: flex-start; }
 .el-radio { height: auto; white-space: normal; margin: 12px 0; }
 :deep(.el-radio__label) { white-space: normal; line-height: 1.6; }
+.option-mark { display: inline-block; margin-inline-start: 8px; padding: 0 6px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+.option-mark.wrong { background: var(--c-danger-light); color: var(--c-danger); }
+.option-mark.correct { background: var(--c-success-light); color: var(--c-success); }
 </style>
