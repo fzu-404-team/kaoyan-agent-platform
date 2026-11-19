@@ -11,7 +11,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.kaoyan.dto.response.SessionSummaryVO;
 import com.kaoyan.entity.PracticeRecord;
 import com.kaoyan.entity.Question;
+import com.kaoyan.entity.UserQuestionMark;
 import com.kaoyan.mapper.PracticeRecordMapper;
+import com.kaoyan.service.PracticeDraw;
 import com.kaoyan.service.PracticeService;
 import com.kaoyan.service.QuestionService;
 import com.kaoyan.service.StudyStatService;
@@ -41,7 +43,6 @@ public class PracticeServiceImpl extends ServiceImpl<PracticeRecordMapper, Pract
     private final com.kaoyan.mapper.QuestionMapper questionMapper;
     private final UserQuestionMarkService userQuestionMarkService;
     private final StudyStatService studyStatService;
-
     @Override
     @Transactional
     public String startSession(Long userId, String subject, String difficulty, int count) {
@@ -56,19 +57,29 @@ public class PracticeServiceImpl extends ServiceImpl<PracticeRecordMapper, Pract
         if (!List.of("NORMAL", "WRONG", "FAVORITE").contains(mode)) throw new ApiException(400, 400, "练习来源无效");
         if (questionIds != null && (questionIds.size() > 50 || questionIds.stream().anyMatch(id -> id == null || id <= 0)))
             throw new ApiException(400, 400, "题目集合无效");
-        List<Long> allowed = "WRONG".equals(mode) ? userQuestionMarkService.listWrong(userId).stream().map(com.kaoyan.entity.UserQuestionMark::getQuestionId).toList()
-                : "FAVORITE".equals(mode) ? userQuestionMarkService.listFavorite(userId).stream().map(com.kaoyan.entity.UserQuestionMark::getQuestionId).toList() : null;
-        List<Question> questions;
-        if (questionIds != null && !questionIds.isEmpty()) {
-            if (allowed != null && !allowed.containsAll(questionIds)) throw new ApiException(404, 404, "题目不存在");
-            questions = questionIds.stream().distinct().map(questionService::getById)
-                    .filter(QuestionHistoryView::playable).filter(q -> subject == null || subject.isBlank() || subject.equals(q.getSubject()))
-                    .filter(q -> difficulty == null || difficulty.isBlank() || difficulty.equals(q.getDifficulty())).limit(count).toList();
-        } else if (allowed != null) {
-            questions = allowed.stream().distinct().map(questionService::getById).filter(QuestionHistoryView::playable)
-                    .filter(q -> subject == null || subject.isBlank() || subject.equals(q.getSubject()))
-                    .filter(q -> difficulty == null || difficulty.isBlank() || difficulty.equals(q.getDifficulty())).limit(count).toList();
-        } else questions = questionService.listForPractice(subject, difficulty, null, count);
+        boolean explicit = questionIds != null && !questionIds.isEmpty();
+        boolean markedSource = !"NORMAL".equals(mode);
+        List<Long> selectedIds;
+        if (explicit) {
+            selectedIds = questionIds.stream().distinct().toList();
+            if (markedSource) {
+                var marks = userQuestionMarkService.lambdaQuery()
+                        .eq(UserQuestionMark::getUserId, userId)
+                        .in(UserQuestionMark::getQuestionId, selectedIds)
+                        .eq("WRONG".equals(mode) ? UserQuestionMark::getIsWrong : UserQuestionMark::getIsFavorite, 1);
+                if (marks.count() != selectedIds.size()) throw new ApiException(404, 404, "题目不存在");
+            }
+        } else {
+            selectedIds = questionMapper.drawPracticeIds(userId, mode,
+                    markedSource && subject != null && subject.isBlank() ? null : subject,
+                    markedSource && difficulty != null && difficulty.isBlank() ? null : difficulty, count);
+        }
+        List<Question> questions = selectedIds.isEmpty() ? List.of() : PracticeDraw.inSelectionOrder(
+                selectedIds, questionService.listByIds(selectedIds)).stream()
+                .filter(QuestionHistoryView::playable)
+                .filter(q -> !explicit || subject == null || subject.isBlank() || subject.equals(q.getSubject()))
+                .filter(q -> !explicit || difficulty == null || difficulty.isBlank() || difficulty.equals(q.getDifficulty()))
+                .limit(count).toList();
         if (questions.isEmpty()) {
             throw new ApiException(404, 404, "没有符合条件的题目");
         }
